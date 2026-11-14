@@ -76,6 +76,10 @@ h1, h2, h3, .brand-copy strong, .login-hero h1, .login-heading h2, .kpi > strong
 .info-banner { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; padding: 12px 14px; border: 1px solid #DCCFEA; border-radius: 10px; background: var(--light-lavender); color: var(--deep-purple); font-size: 12px; }
 .info-banner svg { flex: none; margin-top: 1px; color: var(--primary-purple); }
 .form-help { display: block; margin-top: 6px; color: var(--secondary-text); font-size: 10px; font-weight: 500; }
+.finance-price { color: var(--primary-purple); font-size: 11px; white-space: nowrap; }
+.finance-steps { display: grid; gap: 14px; }
+.finance-steps div { display: flex; gap: 10px; align-items: flex-start; color: var(--secondary-text); font-size: 12px; }
+.finance-steps b { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--light-lavender); color: var(--primary-purple); font-size: 11px; }
 
 /* UI polish: restrained feedback, no layout or interaction changes */
 .primary, .secondary, .icon-button, .text-button, .kpi, .attention-item, .tabs button, .report-tabs > button, .logout {
