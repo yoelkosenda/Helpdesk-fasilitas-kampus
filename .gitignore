@@ -1,0 +1,8 @@
+node_modules/
+frontend/dist/
+.env
+*.db
+*.db-journal
+uploads/*
+!uploads/.gitkeep
+tests/tmp/

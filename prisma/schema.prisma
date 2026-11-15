@@ -1,0 +1,217 @@
+// Skema database Helpdesk Fasilitas Kampus
+// Diturunkan dari ERD "erd-helpdesk" pada file JSON diagram + SRS (REQ/BR).
+//
+// Untuk deploy dengan PostgreSQL: ubah provider menjadi "postgresql"
+// dan isi DATABASE_URL dengan connection string PostgreSQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Akun & aktor ----------
+
+// Akun login (NFR-04, NFR-05, NFR-06).
+// role: ADMIN | TEKNISI | KEPALA_UNIT | KEUANGAN | PELAPOR
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  nama      String
+  role      String
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teknisi Teknisi?
+  pelapor Pelapor?
+
+  laporanDicatat      Laporan[]             @relation("LaporanDicatatOleh")
+  perkembangan        Perkembangan[]
+  konfirmasiDicatat   Konfirmasi[]
+  pengajuanDicatat    PengajuanSukuCadang[]
+}
+
+// ERD: Pelapor (id_pelapor, nama, kontak opsional)
+model Pelapor {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  kontak    String?
+  userId    Int?     @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  laporan Laporan[]
+}
+
+// ERD: Teknisi (id_teknisi, nama, bidang, aktif)
+// bidang: LISTRIK | AC | BANGUNAN | AIR (BR-01)
+model Teknisi {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  bidang    String
+  aktif     Boolean  @default(true)
+  userId    Int?     @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  penugasan Penugasan[]
+}
+
+// ---------- Master lokasi & jenis ----------
+
+// ERD: Gedung (id_gedung, nama_gedung) — 8 gedung kampus (BR-01)
+model Gedung {
+  id         Int     @id @default(autoincrement())
+  namaGedung String  @unique
+  ruang      Ruang[]
+}
+
+// ERD: Ruang (id_ruang, nama/nomor_ruang) — Gedung 1:N Ruang
+model Ruang {
+  id        Int       @id @default(autoincrement())
+  namaRuang String
+  gedungId  Int
+  gedung    Gedung    @relation(fields: [gedungId], references: [id])
+  laporan   Laporan[]
+
+  @@unique([gedungId, namaRuang])
+}
+
+// ERD: JenisKerusakan (id_jenis, nama_jenis) + bidang untuk pencocokan teknisi (REQ-06)
+model JenisKerusakan {
+  id        Int       @id @default(autoincrement())
+  namaJenis String    @unique
+  bidang    String
+  laporan   Laporan[]
+}
+
+// ---------- Transaksi ----------
+
+// ERD: Laporan
+// sumberLaporan: WHATSAPP | TELEPON | DATANG_LANGSUNG (REQ-03)
+// prioritas: DARURAT | TINGGI | NORMAL (REQ-04)
+// status: lihat src/constants.js
+model Laporan {
+  id                 Int       @id @default(autoincrement())
+  kode               String    @unique
+  tanggalLapor       DateTime  @default(now())
+  sumberLaporan      String
+  prioritas          String?
+  targetSla          DateTime?
+  status             String    @default("BARU")
+  statusSebelumDitahan String?
+  tglSelesaiTeknisi  DateTime?
+  tglDitutup         DateTime?
+  foto               String?
+  deskripsi          String?
+
+  pelaporId   Int
+  pelapor     Pelapor        @relation(fields: [pelaporId], references: [id])
+  ruangId     Int
+  ruang       Ruang          @relation(fields: [ruangId], references: [id])
+  jenisId     Int
+  jenis       JenisKerusakan @relation(fields: [jenisId], references: [id])
+  dicatatOlehId Int?
+  dicatatOleh   User?        @relation("LaporanDicatatOleh", fields: [dicatatOlehId], references: [id])
+
+  penugasan    Penugasan[]
+  perkembangan Perkembangan[]
+  konfirmasi   Konfirmasi[]
+  pengajuan    PengajuanSukuCadang[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([tanggalLapor])
+}
+
+// ERD: Penugasan (id_penugasan, tgl_tugas, status_tugas)
+// Laporan 1:N Penugasan, Teknisi 1:N Penugasan (REQ-06, REQ-07, BR-09)
+// statusTugas: AKTIF | SELESAI | DIBATALKAN
+model Penugasan {
+  id          Int      @id @default(autoincrement())
+  tglTugas    DateTime @default(now())
+  statusTugas String   @default("AKTIF")
+  laporanId   Int
+  laporan     Laporan  @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  teknisiId   Int
+  teknisi     Teknisi  @relation(fields: [teknisiId], references: [id])
+
+  jamKerja JamKerja[]
+
+  @@index([laporanId])
+  @@index([teknisiId])
+}
+
+// ERD: Perkembangan (id_perkembangan, waktu, status, catatan) — riwayat status (REQ-10, US-11)
+// jenis: PENCATATAN | PRIORITAS | PENUGASAN | PROGRES | PEMERIKSAAN | PERBAIKAN | SELESAI_TEKNISI
+//        | KONFIRMASI | DIBUKA_KEMBALI | DITAHAN | DILANJUTKAN | DITUTUP_OTOMATIS
+model Perkembangan {
+  id        Int      @id @default(autoincrement())
+  waktu     DateTime @default(now())
+  status    String
+  jenis     String   @default("PROGRES")
+  catatan   String?
+  laporanId Int
+  laporan   Laporan  @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([laporanId])
+}
+
+// ERD: JamKerja (id_jam, durasi_jam, tanggal) — Penugasan 1:N JamKerja (REQ-11, BR-10)
+model JamKerja {
+  id          Int       @id @default(autoincrement())
+  durasiJam   Float
+  tanggal     DateTime
+  catatan     String?
+  penugasanId Int
+  penugasan   Penugasan @relation(fields: [penugasanId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([penugasanId])
+}
+
+// ERD: Konfirmasi (id_konfirmasi, hasil, tanggal, catatan)
+// hasil: SELESAI | BELUM_SELESAI | TIDAK_ADA_TANGGAPAN (REQ-12..14)
+// Catatan: ERD menulis 0..1, namun karena laporan bisa dibuka kembali (BR-13)
+// riwayat konfirmasi disimpan 0..N per laporan.
+model Konfirmasi {
+  id        Int      @id @default(autoincrement())
+  hasil     String
+  tanggal   DateTime @default(now())
+  catatan   String?
+  laporanId Int
+  laporan   Laporan  @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  dicatatOlehId Int?
+  dicatatOleh   User? @relation(fields: [dicatatOlehId], references: [id])
+
+  @@index([laporanId])
+}
+
+// ERD: PengajuanSukuCadang (id_pengajuan, nilai, tgl_pengajuan, status) — Laporan 0..N (REQ-19, REQ-20, BR-11)
+// status: MENUNGGU | DITINDAKLANJUTI
+model PengajuanSukuCadang {
+  id            Int       @id @default(autoincrement())
+  namaBarang    String
+  nilai         Int
+  tglPengajuan  DateTime  @default(now())
+  status        String    @default("MENUNGGU")
+  catatan       String?
+  tglTindakLanjut DateTime?
+  catatanTindakLanjut String?
+  laporanId     Int
+  laporan       Laporan   @relation(fields: [laporanId], references: [id], onDelete: Cascade)
+  dicatatOlehId Int?
+  dicatatOleh   User?     @relation(fields: [dicatatOlehId], references: [id])
+
+  @@index([laporanId])
+  @@index([status])
+}
