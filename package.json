@@ -8,10 +8,10 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "postinstall": "prisma generate",
-    "db:push": "prisma db push",
+    "db:push": "node prisma/prepare-sqlite.js && prisma db push",
     "db:seed": "node prisma/seed.js",
-    "db:reset": "prisma db push --force-reset && node prisma/seed.js",
-    "setup": "prisma db push && node prisma/seed.js",
+    "db:reset": "node prisma/prepare-sqlite.js && prisma db push --force-reset && node prisma/seed.js",
+    "setup": "node prisma/prepare-sqlite.js && prisma db push && node prisma/seed.js",
     "test": "node --test tests/api.test.js"
   },
   "prisma": {
@@ -35,5 +35,10 @@
   },
   "devDependencies": {
     "supertest": "^7.3.2"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true
   }
 }

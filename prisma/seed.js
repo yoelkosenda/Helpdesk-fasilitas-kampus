@@ -5,7 +5,8 @@ const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
-const PASSWORD = process.env.SEED_PASSWORD || 'password123';
+const PASSWORD = process.env.SEED_PASSWORD;
+if (!PASSWORD) throw new Error('Isi SEED_PASSWORD di .env sebelum menjalankan seed.');
 
 const GEDUNG = ['Gedung A', 'Gedung B', 'Gedung C', 'Gedung D', 'Gedung E', 'Gedung F', 'Gedung Rektorat', 'Gedung Perpustakaan'];
 const RUANG = ['Ruang 101', 'Ruang 102', 'Ruang 201', 'Ruang 202', 'Toilet Lt.1', 'Koridor'];
@@ -77,7 +78,7 @@ async function main() {
     await prisma.teknisi.upsert({ where: { userId: u.id }, update: {}, create: { nama: t.nama, bidang: t.bidang, userId: u.id } });
   }
 
-  console.log('Seed selesai. Akun uji (password: %s):', PASSWORD);
+  console.log('Seed selesai. Akun uji dibuat dengan hash password.');
   [...AKUN, ...TEKNISI].forEach((a) => console.log(`  - ${a.username.padEnd(18)} ${a.role || 'TEKNISI'}`));
 }
 

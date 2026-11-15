@@ -3,14 +3,18 @@
 const path = require('path');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
+const { randomBytes } = require('node:crypto');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
 const tmp = path.join(__dirname, 'tmp');
+const testDbPath = path.join(root, 'prisma', 'test.db');
 fs.mkdirSync(tmp, { recursive: true });
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = `file:${path.join(tmp, 'test.db').replace(/\\/g, '/')}`;
+process.env.SEED_PASSWORD = randomBytes(24).toString('hex');
+// Prisma resolves SQLite paths relative to prisma/schema.prisma.
+process.env.DATABASE_URL = 'file:./test.db';
 process.env.UPLOAD_DIR = path.join(tmp, 'uploads');
 process.env.AKTIFKAN_SCHEDULER = 'false';
 process.env.JWT_SECRET = 'test-secret';
@@ -28,13 +32,17 @@ const PNG = Buffer.from(
 );
 
 before(async () => {
+  // On Windows, Prisma 6.19 needs the SQLite file to exist before db push.
+  // This is an isolated, ignored test database; never point it at a user DB.
+  fs.rmSync(testDbPath, { force: true });
+  run([path.join(root, 'prisma', 'prepare-sqlite.js')]);
   run([prismaCli, 'db', 'push', '--force-reset', '--skip-generate']);
   run([path.join(root, 'prisma', 'seed.js')]);
   request = require('supertest');
   app = require('../src/app');
   prisma = require('../src/db');
   for (const u of ['admin', 'kepala', 'keuangan', 'pelapor', 'teknisi.listrik', 'teknisi.ac', 'teknisi.bangunan']) {
-    const r = await request(app).post('/api/auth/login').send({ username: u, password: 'password123' });
+    const r = await request(app).post('/api/auth/login').send({ username: u, password: process.env.SEED_PASSWORD });
     assert.equal(r.status, 200, `login ${u}`);
     tok[u] = `Bearer ${r.body.data.token}`;
   }
@@ -42,6 +50,7 @@ before(async () => {
 
 after(async () => {
   if (prisma) await prisma.$disconnect();
+  fs.rmSync(testDbPath, { force: true });
 });
 
 const api = (method, url, who) => request(app)[method](url).set('Authorization', tok[who]);
