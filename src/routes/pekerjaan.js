@@ -98,6 +98,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const p = await getPenugasan(toInt(req.params.id));
     assertPemilik(req.user, p);
+    if (STATUS_FINAL.includes(p.laporan.status)) throw conflict('Laporan sudah selesai/ditutup');
     if (p.statusTugas === 'DIBATALKAN') throw conflict('Penugasan sudah dibatalkan');
     const tanggal = req.valid.body.tanggal || new Date();
     if (tanggal > new Date(Date.now() + 60 * 60 * 1000)) throw badRequest('Tanggal jam kerja tidak boleh di masa depan');
@@ -110,9 +111,13 @@ router.delete(
   '/jam-kerja/:id',
   authorize(ADMIN, TEKNISI),
   asyncHandler(async (req, res) => {
-    const jam = await prisma.jamKerja.findUnique({ where: { id: toInt(req.params.id) }, include: { penugasan: true } });
+    const jam = await prisma.jamKerja.findUnique({
+      where: { id: toInt(req.params.id) },
+      include: { penugasan: { include: { laporan: true } } },
+    });
     if (!jam) throw notFound('Catatan jam kerja tidak ditemukan');
     assertPemilik(req.user, jam.penugasan);
+    if (STATUS_FINAL.includes(jam.penugasan.laporan.status)) throw conflict('Laporan sudah selesai/ditutup');
     await prisma.jamKerja.delete({ where: { id: jam.id } });
     ok(res, null, 'Catatan jam kerja dihapus');
   }),
