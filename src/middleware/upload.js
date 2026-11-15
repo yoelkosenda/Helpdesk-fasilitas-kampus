@@ -1,22 +1,22 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const multer = require('multer');
 const config = require('../config');
 const { badRequest } = require('../utils/http');
-
-const dir = path.resolve(config.uploadDir);
-fs.mkdirSync(dir, { recursive: true });
+const { isSupabaseEnabled, createFilename } = require('../services/storage');
 
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, dir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-  },
-});
+const storage = isSupabaseEnabled()
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.resolve(config.uploadDir);
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => cb(null, createFilename(file.originalname)),
+    });
 
 const upload = multer({
   storage,

@@ -5,7 +5,7 @@ import campusUk1 from './assets/campus-uk1.jpg'
 import './styles.css'
 import './brand-theme.css'
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+const API = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000/api')
 const roleLabels = { ADMIN: 'Admin', TEKNISI: 'Teknisi', KEPALA_UNIT: 'Kepala Unit', KEUANGAN: 'Bagian Keuangan', PELAPOR: 'Pelapor' }
 const statusLabels = { BARU: 'Baru', DITUGASKAN: 'Ditugaskan', DIKERJAKAN: 'Dikerjakan', MENUNGGU_KONFIRMASI: 'Menunggu Konfirmasi', DITAHAN: 'Ditahan', SELESAI: 'Selesai', SELESAI_OTOMATIS: 'Selesai Otomatis', DIBUKA_KEMBALI: 'Dibuka Kembali' }
 const priorityLabels = { DARURAT: 'Darurat', TINGGI: 'Tinggi', NORMAL: 'Normal' }

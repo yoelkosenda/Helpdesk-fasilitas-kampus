@@ -12,6 +12,7 @@
     "db:seed": "node prisma/seed.js",
     "db:reset": "node prisma/prepare-sqlite.js && prisma db push --force-reset && node prisma/seed.js",
     "setup": "node prisma/prepare-sqlite.js && prisma db push && node prisma/seed.js",
+    "vercel-build": "prisma generate && npm --prefix frontend install && npm --prefix frontend run build",
     "test": "node --test tests/api.test.js"
   },
   "prisma": {
@@ -22,6 +23,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "@supabase/supabase-js": "^2.119.0",
+    "@vercel/schedules": "^0.0.3",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.10",

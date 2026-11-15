@@ -18,4 +18,7 @@ module.exports = {
   autoCloseMode: process.env.AUTO_CLOSE_MODE === 'kerja' ? 'kerja' : 'kalender',
   autoCloseIntervalMenit: Number(process.env.AUTO_CLOSE_INTERVAL_MENIT || 60),
   aktifkanScheduler: bool(process.env.AKTIFKAN_SCHEDULER, true),
+  supabaseUrl: process.env.SUPABASE_URL || '',
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  supabaseBucket: process.env.SUPABASE_STORAGE_BUCKET || 'laporan-foto',
 };

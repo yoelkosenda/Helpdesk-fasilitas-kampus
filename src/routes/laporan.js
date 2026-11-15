@@ -1,7 +1,5 @@
 // Laporan kerusakan: pencatatan, prioritas/SLA, penugasan, perkembangan,
 // penyelesaian teknisi, konfirmasi pelapor, buka kembali, pengajuan suku cadang.
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
 const { z } = require('zod');
 const prisma = require('../db');
@@ -12,6 +10,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler, ok, toInt, badRequest, forbidden, conflict } = require('../utils/http');
 const { hitungTargetSla } = require('../utils/sla');
 const { batasWaktu } = require('../services/autoClose');
+const { simpanFoto, hapusFoto } = require('../services/storage');
 const {
   ROLE,
   SUMBER_LAPORAN,
@@ -64,11 +63,6 @@ function assertTeknisiDitugaskan(user, lap) {
 
 function assertBelumFinal(lap) {
   if (STATUS_FINAL.includes(lap.status)) throw conflict('Laporan sudah selesai/ditutup');
-}
-
-function hapusFoto(nama) {
-  if (!nama) return;
-  fs.promises.unlink(path.resolve(config.uploadDir, nama)).catch(() => {});
 }
 
 // ---------- Daftar & detail ----------
@@ -175,6 +169,7 @@ router.post(
   }),
   asyncHandler(async (req, res) => {
     const b = req.valid.body;
+    let savedFoto = req.file?.filename || null;
     try {
       if (config.wajibFoto && !req.file) throw badRequest('Foto kerusakan wajib dilampirkan (BR-03)');
       const [ruang, jenis] = await Promise.all([
@@ -183,6 +178,8 @@ router.post(
       ]);
       if (!ruang) throw badRequest('Ruang tidak ditemukan');
       if (!jenis) throw badRequest('Jenis kerusakan tidak ditemukan');
+
+      savedFoto = req.file ? await simpanFoto(req.file) : null;
 
       const lap = await prisma.$transaction(async (tx) => {
         let pelaporId = b.pelaporId;
@@ -202,7 +199,7 @@ router.post(
             prioritas: b.prioritas,
             targetSla: b.prioritas ? hitungTargetSla(b.prioritas, tanggalLapor) : null,
             deskripsi: b.deskripsi,
-            foto: req.file ? req.file.filename : null,
+            foto: savedFoto,
             pelaporId,
             ruangId: b.ruangId,
             jenisId: b.jenisId,
@@ -221,7 +218,7 @@ router.post(
       });
       ok(res, serialize(await getLaporanOrThrow(lap.id), req), 'Laporan berhasil disimpan', 201);
     } catch (err) {
-      if (req.file) hapusFoto(req.file.filename);
+      await hapusFoto(savedFoto);
       throw err;
     }
   }),
@@ -260,15 +257,17 @@ router.put(
   upload.single('foto'),
   asyncHandler(async (req, res) => {
     if (!req.file) throw badRequest('File foto wajib dikirim pada field "foto"');
+    let savedFoto = req.file.filename || null;
     try {
       const id = toInt(req.params.id);
       const lap = await getLaporanOrThrow(id, includeRingkas);
       assertBelumFinal(lap);
-      await prisma.laporan.update({ where: { id }, data: { foto: req.file.filename } });
-      hapusFoto(lap.foto);
+      savedFoto = await simpanFoto(req.file);
+      await prisma.laporan.update({ where: { id }, data: { foto: savedFoto } });
+      await hapusFoto(lap.foto);
       ok(res, serialize(await getLaporanOrThrow(id), req), 'Foto diperbarui');
     } catch (err) {
-      hapusFoto(req.file.filename);
+      await hapusFoto(savedFoto);
       throw err;
     }
   }),
