@@ -1,16 +1,16 @@
 // Skema database Helpdesk Fasilitas Kampus
 // Diturunkan dari ERD "erd-helpdesk" pada file JSON diagram + SRS (REQ/BR).
 //
-// Untuk deploy dengan PostgreSQL: ubah provider menjadi "postgresql"
-// dan isi DATABASE_URL dengan connection string PostgreSQL.
+// Untuk deploy dengan PostgreSQL (mis. Supabase): isi DATABASE_URL dengan connection string PostgreSQL.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------- Akun & aktor ----------
