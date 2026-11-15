@@ -270,3 +270,95 @@ test('validasi update laporan & larangan ubah foto/jam kerja setelah selesai', a
   const jamRes = await api('post', `/api/penugasan/${penugasanId}/jam-kerja`, 'teknisi.listrik').send({ durasiJam: 1 });
   assert.equal(jamRes.status, 409);
 });
+
+test('validasi upload non-gambar, SLA TINGGI & NORMAL (hari kerja), dan batal penugasan', async () => {
+  const r = await ref();
+
+  // Upload file non-gambar ditolak 400
+  const nonImg = await api('post', '/api/laporan', 'admin')
+    .field('sumberLaporan', 'WHATSAPP')
+    .field('ruangId', r.ruang.id)
+    .field('jenisId', r.listrikPadam.id)
+    .field('pelaporNama', 'Pelapor File Salah')
+    .attach('foto', Buffer.from('bukan gambar'), { filename: 'dok.txt', contentType: 'text/plain' });
+  assert.equal(nonImg.status, 400);
+
+  // SLA TINGGI (+24 jam) & NORMAL (+3 hari kerja melewati akhir pekan)
+  const jumat = new Date('2026-11-13T09:00:00.000Z'); // Jumat
+  const lapTinggi = await buatLaporan(r, { prioritas: 'TINGGI', tanggalLapor: jumat.toISOString() });
+  assert.equal((new Date(lapTinggi.targetSla) - jumat) / 3.6e6, 24);
+
+  const lapNormal = await buatLaporan(r, { prioritas: 'NORMAL', tanggalLapor: jumat.toISOString() });
+  // Jumat + 3 hari kerja (Sabtu & Minggu dilewati) = Rabu (5 hari kalender)
+  assert.equal((new Date(lapNormal.targetSla) - jumat) / 864e5, 5);
+
+  // Penugasan duplikat ditolak 409, lalu batalkan penugasan terakhir -> kembali BARU
+  const p1 = await api('post', `/api/laporan/${lapNormal.id}/penugasan`, 'admin').send({ teknisiIds: [r.tek.LISTRIK.id] });
+  assert.equal(p1.status, 201);
+  const dup = await api('post', `/api/laporan/${lapNormal.id}/penugasan`, 'admin').send({ teknisiIds: [r.tek.LISTRIK.id] });
+  assert.equal(dup.status, 409);
+
+  const pid = p1.body.data.penugasan[0].id;
+  const del = await api('delete', `/api/laporan/${lapNormal.id}/penugasan/${pid}`, 'admin');
+  assert.equal(del.status, 200);
+  assert.equal(del.body.data.status, 'BARU');
+});
+
+test('data master, ganti password, dan akun nonaktif', async () => {
+  // Buat user baru & uji ganti password + nonaktifkan akun
+  const uRes = await api('post', '/api/master/users', 'admin').send({
+    username: 'pelapor.qa',
+    password: 'password123',
+    nama: 'Pelapor QA',
+    role: 'PELAPOR',
+  });
+  assert.equal(uRes.status, 201);
+  const userId = uRes.body.data.id;
+
+  const loginRes = await request(app).post('/api/auth/login').send({ username: 'pelapor.qa', password: 'password123' });
+  assert.equal(loginRes.status, 200);
+  const qaToken = `Bearer ${loginRes.body.data.token}`;
+
+  // Ganti password: salah password lama -> 400, benar -> 200
+  const wrongPw = await request(app)
+    .post('/api/auth/ganti-password')
+    .set('Authorization', qaToken)
+    .send({ passwordLama: 'salah123', passwordBaru: 'baru12345' });
+  assert.equal(wrongPw.status, 400);
+
+  const okPw = await request(app)
+    .post('/api/auth/ganti-password')
+    .set('Authorization', qaToken)
+    .send({ passwordLama: 'password123', passwordBaru: 'baru12345' });
+  assert.equal(okPw.status, 200);
+
+  assert.equal(
+    (await request(app).post('/api/auth/login').send({ username: 'pelapor.qa', password: 'baru12345' })).status,
+    200,
+  );
+
+  // Admin tidak bisa menonaktifkan akun sendiri
+  const meAdmin = (await api('get', '/api/auth/me', 'admin')).body.data;
+  assert.equal((await api('patch', `/api/master/users/${meAdmin.id}/aktif`, 'admin').send({ aktif: false })).status, 400);
+
+  // Nonaktifkan user QA -> login ditolak 401
+  assert.equal((await api('patch', `/api/master/users/${userId}/aktif`, 'admin').send({ aktif: false })).status, 200);
+  assert.equal(
+    (await request(app).post('/api/auth/login').send({ username: 'pelapor.qa', password: 'baru12345' })).status,
+    401,
+  );
+
+  // Teknisi nonaktif tidak boleh ditugaskan
+  const tekNonaktif = await api('post', '/api/master/teknisi', 'admin').send({
+    nama: 'Teknisi Nonaktif',
+    bidang: 'AIR',
+    aktif: false,
+  });
+  assert.equal(tekNonaktif.status, 201);
+  const r = await ref();
+  const lap = await buatLaporan(r);
+  assert.equal(
+    (await api('post', `/api/laporan/${lap.id}/penugasan`, 'admin').send({ teknisiIds: [tekNonaktif.body.data.id] })).status,
+    400,
+  );
+});
