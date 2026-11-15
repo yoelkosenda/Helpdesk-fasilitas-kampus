@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "prisma/**,src/**"
+    },
+    "api/schedules/auto-close.mjs": {
+      "includeFiles": "prisma/**,src/**",
+      "experimentalTriggers": [{ "type": "schedule/v1beta" }]
+    }
+  },
+  "schedules": {
+    "auto-close": {
+      "schedule": "0 * * * *",
+      "timezone": "Asia/Makassar",
+      "function": "api/schedules/auto-close"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

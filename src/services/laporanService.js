@@ -35,7 +35,13 @@ const includeDetail = {
 function serialize(laporan, req) {
   if (!laporan) return laporan;
   const sla = infoSla(laporan);
-  const fotoUrl = laporan.foto && req ? `${req.protocol}://${req.get('host')}/uploads/${laporan.foto}` : null;
+  const fotoUrl = !laporan.foto
+    ? null
+    : /^https?:\/\//i.test(laporan.foto)
+      ? laporan.foto
+      : req
+        ? `${req.protocol}://${req.get('host')}/uploads/${laporan.foto}`
+        : null;
   const teknisiAktif = (laporan.penugasan || [])
     .filter((p) => p.statusTugas === 'AKTIF')
     .map((p) => ({ penugasanId: p.id, ...p.teknisi }));
