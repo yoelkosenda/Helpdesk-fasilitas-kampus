@@ -88,6 +88,10 @@ h1, h2, h3, .brand-copy strong, .login-hero h1, .login-heading h2, .kpi > strong
 .info-banner { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 18px; padding: 12px 14px; border: 1px solid #DCCFEA; border-radius: 10px; background: var(--light-lavender); color: var(--deep-purple); font-size: 12px; }
 .info-banner svg { flex: none; margin-top: 1px; color: var(--primary-purple); }
 .form-help { display: block; margin-top: 6px; color: var(--secondary-text); font-size: 10px; font-weight: 500; }
+.password-control { position: relative; display: block; margin-top: 8px; }
+.password-control input { margin-top: 0 !important; padding-right: 42px; }
+.password-control button { position: absolute; top: 50%; right: 8px; display: grid; place-items: center; width: 30px; height: 30px; transform: translateY(-50%); color: var(--secondary-text); border-radius: 7px; }
+.password-control button:hover { color: var(--primary-purple); background: var(--light-lavender); }
 .campus-hero { display: grid; grid-template-columns: .9fr 1.1fr; min-height: 228px; margin-bottom: 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: var(--shadow); }
 .campus-hero-copy { display: flex; flex-direction: column; justify-content: center; padding: 28px 30px; background: linear-gradient(145deg, var(--deep-purple), var(--primary-purple)); color: var(--white); }
 .campus-hero-copy .eyebrow { color: #E5D9F0; }
@@ -104,6 +108,21 @@ h1, h2, h3, .brand-copy strong, .login-hero h1, .login-heading h2, .kpi > strong
 .finance-steps { display: grid; gap: 14px; }
 .finance-steps div { display: flex; gap: 10px; align-items: flex-start; color: var(--secondary-text); font-size: 12px; }
 .finance-steps b { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--light-lavender); color: var(--primary-purple); font-size: 11px; }
+.worklog-form { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.worklog-form-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.worklog-form-head strong { font-size: 12px; color: var(--deep-purple); }
+.worklog-form-head small { color: var(--secondary-text); font-size: 10px; }
+.worklog-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.worklog-fields label { color: var(--secondary-text); font-size: 11px; font-weight: 700; }
+.worklog-fields input, .worklog-fields select { display: block; margin-top: 5px; padding: 9px 10px; font-size: 12px; }
+.worklog-note { grid-column: span 2; }
+.worklog-form > .primary { justify-self: end; }
+.work-duration { display: grid; gap: 4px; margin-top: 14px; padding: 12px; border-radius: 9px; background: var(--light-lavender); }
+.work-duration div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.work-duration span { color: var(--secondary-text); font-size: 11px; }
+.work-duration strong { color: var(--primary-purple); font: 800 18px Manrope; }
+.work-duration small { color: var(--secondary-text); font-size: 10px; }
+@media (max-width: 760px) { .worklog-fields { grid-template-columns: 1fr; } .worklog-note { grid-column: span 1; } .worklog-form > .primary { width: 100%; } }
 
 /* UI polish: restrained feedback, no layout or interaction changes */
 .primary, .secondary, .icon-button, .text-button, .kpi, .attention-item, .tabs button, .report-tabs > button, .logout {
