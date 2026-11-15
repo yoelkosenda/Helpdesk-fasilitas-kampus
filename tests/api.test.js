@@ -9,12 +9,15 @@ const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
 const tmp = path.join(__dirname, 'tmp');
-const testDbPath = path.join(root, 'prisma', 'test.db');
+const testDbPath = path.join(tmp, 'test.db');
+const testSchemaPath = path.join(tmp, 'schema.sqlite.prisma');
+const testClientPath = path.join(tmp, 'prisma-client');
 fs.mkdirSync(tmp, { recursive: true });
 process.env.NODE_ENV = 'test';
 process.env.SEED_PASSWORD = randomBytes(24).toString('hex');
-// Prisma resolves SQLite paths relative to prisma/schema.prisma.
+// Prisma resolves SQLite paths relative to the schema file (tests/tmp/schema.sqlite.prisma).
 process.env.DATABASE_URL = 'file:./test.db';
+process.env.PRISMA_CLIENT_PATH = testClientPath;
 process.env.UPLOAD_DIR = path.join(tmp, 'uploads');
 process.env.AKTIFKAN_SCHEDULER = 'false';
 process.env.JWT_SECRET = 'test-secret';
@@ -32,11 +35,18 @@ const PNG = Buffer.from(
 );
 
 before(async () => {
-  // On Windows, Prisma 6.19 needs the SQLite file to exist before db push.
-  // This is an isolated, ignored test database; never point it at a user DB.
+  // Generate isolated SQLite schema & client in tests/tmp so PostgreSQL schema stays untouched.
+  const baseSchema = fs.readFileSync(path.join(root, 'prisma', 'schema.prisma'), 'utf8');
+  const sqliteSchema = baseSchema
+    .replace('provider = "prisma-client-js"', 'provider = "prisma-client-js"\n  output   = "./prisma-client"')
+    .replace(/provider\s*=\s*"postgresql"/, 'provider  = "sqlite"')
+    .replace(/^\s*directUrl\s*=.*\r?\n/m, '');
+  fs.writeFileSync(testSchemaPath, sqliteSchema);
+
   fs.rmSync(testDbPath, { force: true });
-  run([path.join(root, 'prisma', 'prepare-sqlite.js')]);
-  run([prismaCli, 'db', 'push', '--force-reset', '--skip-generate']);
+  fs.writeFileSync(testDbPath, '');
+  run([prismaCli, 'generate', '--schema', testSchemaPath]);
+  run([prismaCli, 'db', 'push', '--schema', testSchemaPath, '--force-reset', '--skip-generate']);
   run([path.join(root, 'prisma', 'seed.js')]);
   request = require('supertest');
   app = require('../src/app');

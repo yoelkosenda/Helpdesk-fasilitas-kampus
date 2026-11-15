@@ -40,7 +40,61 @@ function Sidebar({ user, page, setPage, collapsed, setCollapsed, onLogout }) {
   const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN','KEPALA_UNIT','KEUANGAN','PELAPOR'] }, { id: 'laporan', label: 'Laporan Kerusakan', icon: ClipboardList, roles: ['ADMIN','KEPALA_UNIT','PELAPOR'] }, { id: 'pekerjaan', label: 'Pekerjaan Saya', icon: Wrench, roles: ['TEKNISI'] }, { id: 'pengajuan', label: 'Pengajuan Suku Cadang', icon: Package, roles: ['ADMIN','KEPALA_UNIT','KEUANGAN'] }, { id: 'manajemen', label: 'Laporan Manajemen', icon: BarChart3, roles: ['ADMIN','KEPALA_UNIT'] }, { id: 'master', label: 'Data Master', icon: Settings2, roles: ['ADMIN'] }].filter(i => i.roles.includes(user.role))
   return <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}><div className="side-brand"><div className="brand-mark small">HF</div><div className="brand-copy"><strong>Helpdesk</strong><span>Fasilitas Kampus</span></div><button className="icon-button side-toggle" aria-label="Perkecil sidebar" onClick={() => setCollapsed(!collapsed)}><Menu size={19}/></button></div><div className="side-label">WORKSPACE</div><nav>{items.map(item => { const Icon = item.icon; return <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => setPage(item.id)}><Icon size={19}/><span>{item.label}</span></button> })}</nav><div className="side-bottom"><div className="side-label">AKUN</div><button onClick={() => setPage('profil')}><UserRound size={19}/><span>Profil & Keamanan</span></button><button className="logout" onClick={onLogout}><LogOut size={19}/><span>Keluar</span></button></div></aside>
 }
-function Topbar({ user, page, onMenu, onRefresh, onProfile = () => document.querySelector('.side-bottom button')?.click() }) { const [notificationsOpen, setNotificationsOpen] = useState(false); return <header className="topbar"><div className="mobile-menu"><button className="icon-button" onClick={onMenu}><Menu size={21}/></button></div><div className="breadcrumbs"><span>Workspace</span><b>/</b><strong>{page === 'dashboard' ? 'Dashboard' : page === 'laporan' ? 'Laporan Kerusakan' : page === 'pekerjaan' ? 'Pekerjaan Saya' : page === 'manajemen' ? 'Laporan Manajemen' : page === 'pengajuan' ? 'Pengajuan Suku Cadang' : page === 'master' ? 'Data Master' : 'Profil'}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Muat ulang" onClick={onRefresh}><RefreshCw size={18}/></button><button className="icon-button notification" aria-label="Notifikasi" onClick={() => setNotificationsOpen(open => !open)}><Bell size={18}/></button>{notificationsOpen && <div className="notification-panel"><div className="notification-panel-head"><strong>Notifikasi</strong><span>Terbaru</span></div><div className="notification-empty"><Bell size={20}/><strong>Tidak ada notifikasi</strong><span>Belum ada aktivitas baru untuk akun ini.</span></div></div>}<button className="user-chip" aria-label="Buka Profil & Keamanan" onClick={onProfile}><div className="avatar">{user.nama?.slice(0,1).toUpperCase()}</div><div><strong>{user.nama}</strong><span>{roleLabels[user.role]}</span></div></button></div></header> }
+function Topbar({ user, page, onMenu, onRefresh, onNavigate, onProfile = () => document.querySelector('.side-bottom button')?.click() }) {
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [alerts, setAlerts] = useState([])
+
+  useEffect(() => {
+    let active = true
+    async function loadAlerts() {
+      try {
+        if (['ADMIN', 'KEPALA_UNIT'].includes(user.role)) {
+          const r = await api('/manajemen/dashboard')
+          const list = (r.data?.peringatanTerlambat || []).slice(0, 5).map(x => ({
+            id: `late-${x.id}`,
+            title: `${x.kode} terlambat`,
+            subtitle: `${x.gedung} · ${x.ruang} (${Math.max(1, Math.floor((x.terlambatMenit || 0) / 60))} jam)`,
+            target: ['detail', x.id],
+          }))
+          if (active) setAlerts(list)
+        } else if (user.role === 'TEKNISI') {
+          const r = await api('/pekerjaan-saya?status=aktif')
+          const list = (r.data || []).slice(0, 5).map(x => ({
+            id: `job-${x.penugasanId}`,
+            title: `${x.laporan.kode} · ${priorityLabels[x.laporan.prioritas] || 'Normal'}`,
+            subtitle: `${x.laporan.ruang?.gedung?.namaGedung || '-'} · ${shortStatus(x.laporan.status)}`,
+            target: ['detail', x.laporan.id],
+          }))
+          if (active) setAlerts(list)
+        } else if (user.role === 'KEUANGAN') {
+          const r = await api('/pengajuan?status=MENUNGGU')
+          const list = (r.data || []).slice(0, 5).map(x => ({
+            id: `req-${x.id}`,
+            title: `${x.namaBarang} (${money(x.nilai)})`,
+            subtitle: x.laporan?.kode || 'Menunggu tindak lanjut',
+            target: ['pengajuan'],
+          }))
+          if (active) setAlerts(list)
+        } else if (user.role === 'PELAPOR') {
+          const r = await api('/laporan?status=MENUNGGU_KONFIRMASI&limit=5')
+          const list = (r.data || []).map(x => ({
+            id: `conf-${x.id}`,
+            title: `${x.kode} menunggu konfirmasi`,
+            subtitle: x.jenis?.namaJenis || 'Konfirmasi hasil perbaikan',
+            target: ['detail', x.id],
+          }))
+          if (active) setAlerts(list)
+        }
+      } catch {
+        if (active) setAlerts([])
+      }
+    }
+    loadAlerts()
+    return () => { active = false }
+  }, [user.role, page])
+
+  return <header className="topbar"><div className="mobile-menu"><button className="icon-button" onClick={onMenu}><Menu size={21}/></button></div><div className="breadcrumbs"><span>Workspace</span><b>/</b><strong>{page === 'dashboard' ? 'Dashboard' : page === 'laporan' ? 'Laporan Kerusakan' : page === 'pekerjaan' ? 'Pekerjaan Saya' : page === 'manajemen' ? 'Laporan Manajemen' : page === 'pengajuan' ? 'Pengajuan Suku Cadang' : page === 'master' ? 'Data Master' : 'Profil'}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Muat ulang" onClick={onRefresh}><RefreshCw size={18}/></button><button className="icon-button notification" aria-label="Notifikasi" onClick={() => setNotificationsOpen(open => !open)}><Bell size={18}/>{alerts.length > 0 && <i/>}</button>{notificationsOpen && <div className="notification-panel"><div className="notification-panel-head"><strong>Notifikasi</strong><span>{alerts.length ? `${alerts.length} item` : 'Terbaru'}</span></div>{alerts.length ? <div className="notification-list">{alerts.map(a => <button key={a.id} className="notification-item" onClick={() => { setNotificationsOpen(false); onNavigate?.(...a.target) }}><strong>{a.title}</strong><span>{a.subtitle}</span></button>)}</div> : <div className="notification-empty"><Bell size={20}/><strong>Tidak ada notifikasi</strong><span>Belum ada aktivitas baru untuk akun ini.</span></div>}</div>}<button className="user-chip" aria-label="Buka Profil & Keamanan" onClick={onProfile}><div className="avatar">{user.nama?.slice(0,1).toUpperCase()}</div><div><strong>{user.nama}</strong><span>{roleLabels[user.role]}</span></div></button></div></header>
+}
 
 function Dashboard({ user, onNavigate }) {
   const [data, setData] = useState(null); const [error, setError] = useState('')
@@ -123,6 +177,21 @@ function AssignmentPanel({ item, user, onToast, onSaved }) {
     }
   }
 
+  async function cancelAssignment(penugasanId) {
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/laporan/${item.id}/penugasan/${penugasanId}`, { method: 'DELETE' })
+      onToast('Penugasan dibatalkan')
+      await onSaved()
+    } catch (e) {
+      setError(e.message)
+      onToast(e.message, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return <section className="panel assignment-panel">
     <div className="panel-head">
       <div><h3>Penugasan</h3><p>Teknisi sesuai bidang {item.jenis?.bidang || '-'}</p></div>
@@ -130,7 +199,8 @@ function AssignmentPanel({ item, user, onToast, onSaved }) {
     </div>
     {item.penugasan?.length ? item.penugasan.map(p => <div className="assignee" key={p.id}>
       <div className="avatar soft">{p.teknisi?.nama?.slice(0, 1)}</div>
-      <div><strong>{p.teknisi?.nama}</strong><span>{p.teknisi?.bidang} · {p.statusTugas}</span></div>
+      <div style={{ flex: 1 }}><strong>{p.teknisi?.nama}</strong><span>{p.teknisi?.bidang} · {p.statusTugas}</span></div>
+      {user.role === 'ADMIN' && p.statusTugas === 'AKTIF' && !['SELESAI', 'SELESAI_OTOMATIS'].includes(item.status) && <button type="button" className="icon-button" title="Batalkan penugasan" disabled={busy} onClick={() => cancelAssignment(p.id)}><X size={15} /></button>}
     </div>) : <p className="muted">Belum ada teknisi ditugaskan.</p>}
     {user.role === 'ADMIN' && !['SELESAI', 'SELESAI_OTOMATIS'].includes(item.status) && <div className="assignment-form">
       <div className="assignment-options">
@@ -188,11 +258,131 @@ function ReporterConfirmation({ item, user, onToast, onSaved }) {
 
 
 
-function DetailPage({ id, user, onBack, onToast }) { const [item, setItem] = useState(null); const [error, setError] = useState(''); const [note, setNote] = useState(''); const [busy, setBusy] = useState(false); const canWork = ['ADMIN','TEKNISI'].includes(user.role); useEffect(() => { api(`/laporan/${id}`).then(r => setItem(r.data)).catch(e => setError(e.message)) }, [id]); async function act(path, body) { setBusy(true); try { await api(`/laporan/${id}/${path}`, { method: 'POST', body: JSON.stringify(body) }); onToast('Perubahan berhasil disimpan'); const r = await api(`/laporan/${id}`); setItem(r.data); setNote('') } catch (e) { onToast(e.message, 'error') } finally { setBusy(false) } } if (error) return <PageFrame title="Detail laporan" subtitle=""><ErrorBox text={error}/></PageFrame>; if (!item) return <Loading/>; return <PageFrame title={item.kode} subtitle={`${item.ruang?.gedung?.namaGedung || '-'} · ${item.ruang?.namaRuang || '-'}`} action={<button className="secondary" onClick={onBack}><ArrowLeft size={16}/> Kembali</button>}><div className="detail-grid"><div className="detail-main"><section className="panel detail-summary"><div className="detail-title"><div><p className="eyebrow">LAPORAN KERUSAKAN</p><h2>{item.deskripsi}</h2></div><StatusBadge value={item.status}/></div><div className="meta-grid"><div><span>Jenis kerusakan</span><b>{item.jenis?.namaJenis || '-'}</b></div><div><span>Prioritas</span><b>{item.prioritas ? <StatusBadge value={item.prioritas} priority/> : 'Belum ditetapkan'}</b></div><div><span>Pelapor</span><b>{item.pelapor?.nama || '-'}</b></div><div><span>Target SLA</span><b>{fmtDate(item.targetSla)}</b></div></div>{item.fotoUrl && <img className="report-photo" src={item.fotoUrl} alt="Foto kondisi fasilitas"/>}</section><section className="panel"><div className="panel-head"><div><h3>Riwayat perkembangan</h3><p>Catatan aktivitas laporan</p></div></div><div className="timeline">{(item.perkembangan || []).map((x, i) => <div className="timeline-item" key={x.id || i}><div className="timeline-dot"/><div><strong>{shortStatus(x.status)} · {x.jenis}</strong><p>{x.catatan}</p><small>{fmtDate(x.waktu || x.tanggal)} · {x.user?.nama || 'Sistem'}</small></div></div>)}</div>{canWork && !['SELESAI','SELESAI_OTOMATIS'].includes(item.status) && <div className="quick-update"><textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Tambahkan catatan perkembangan..."/><div><button className="secondary" disabled={busy || !note.trim()} onClick={() => act('perkembangan', { jenis: 'PROGRES', catatan: note.trim() })}>Simpan progres</button><button className="primary" disabled={busy || !note.trim()} onClick={() => act('selesai-teknisi', { catatan: note.trim() })}>Tandai selesai</button></div></div>}</section><ReporterConfirmation item={item} user={user} onToast={onToast} onSaved={async () => setItem((await api(`/laporan/${id}`)).data)} /></div><aside className="detail-side"><AssignmentPanel item={item} user={user} onToast={onToast} onSaved={async () => setItem((await api(`/laporan/${id}`)).data)} /><section className="panel"><h3>Jam kerja</h3><div className="big-number">{(item.jamKerja || item.penugasan?.flatMap(p => p.jamKerja || []) || []).reduce((s, x) => s + Number(x.durasiJam || 0), 0).toFixed(1)} <small>jam</small></div><p className="muted">Total dari seluruh catatan teknisi.</p><WorkDurationSummary item={item}/><WorkLogForm item={item} user={user} onToast={onToast} onSaved={async () => setItem((await api(`/laporan/${id}`)).data)} /></section><section className="panel"><h3>Pengajuan suku cadang</h3>{item.pengajuan?.length ? item.pengajuan.map(x => <div className="request-line" key={x.id}><div><strong>{x.namaBarang}</strong><span>{money(x.nilai)}</span></div><StatusBadge value={x.status}/></div>) : <p className="muted">Belum ada pengajuan.</p>}</section></aside></div></PageFrame> }
+function EditReportModal({ item, onClose, onSaved, onToast }) {
+  const [refs, setRefs] = useState({ gedung: [], jenis: [] })
+  const [rooms, setRooms] = useState([])
+  const [form, setForm] = useState({
+    sumberLaporan: item.sumberLaporan || 'WHATSAPP',
+    gedungId: item.ruang?.gedungId ? String(item.ruang.gedungId) : '',
+    ruangId: item.ruangId ? String(item.ruangId) : '',
+    jenisId: item.jenisId ? String(item.jenisId) : '',
+    deskripsi: item.deskripsi || '',
+  })
+  const [file, setFile] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    Promise.all([api('/master/gedung'), api('/master/jenis-kerusakan')])
+      .then(([g, j]) => setRefs({ gedung: g.data || [], jenis: j.data || [] }))
+      .catch(e => setError(e.message))
+  }, [])
+
+  useEffect(() => {
+    if (!form.gedungId) { setRooms([]); return }
+    api(`/master/ruang?gedungId=${form.gedungId}`).then(r => setRooms(r.data || [])).catch(() => setRooms([]))
+  }, [form.gedungId])
+
+  async function submit(e) {
+    e.preventDefault()
+    setBusy(true); setError('')
+    try {
+      await api(`/laporan/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          sumberLaporan: form.sumberLaporan,
+          ruangId: Number(form.ruangId),
+          jenisId: Number(form.jenisId),
+          deskripsi: form.deskripsi,
+        }),
+      })
+      if (file) {
+        const fd = new FormData()
+        fd.append('foto', file)
+        await api(`/laporan/${item.id}/foto`, { method: 'PUT', body: fd })
+      }
+      onToast('Laporan berhasil diperbarui')
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <Modal title={`Edit ${item.kode}`} onClose={onClose}>
+    <form className="modal-form" onSubmit={submit}>
+      <div className="form-grid">
+        <label>Sumber laporan<select value={form.sumberLaporan} onChange={e => setForm({ ...form, sumberLaporan: e.target.value })}><option value="WHATSAPP">WhatsApp</option><option value="TELEPON">Telepon</option><option value="DATANG_LANGSUNG">Datang langsung</option></select></label>
+        <label>Jenis kerusakan<select value={form.jenisId} onChange={e => setForm({ ...form, jenisId: e.target.value })} required>{refs.jenis.map(x => <option key={x.id} value={x.id}>{x.namaJenis} · {x.bidang}</option>)}</select></label>
+        <label>Gedung<select value={form.gedungId} onChange={e => setForm({ ...form, gedungId: e.target.value, ruangId: '' })} required><option value="">Pilih gedung</option>{refs.gedung.map(x => <option key={x.id} value={x.id}>{x.namaGedung}</option>)}</select></label>
+        <label>Ruang<select value={form.ruangId} onChange={e => setForm({ ...form, ruangId: e.target.value })} required><option value="">Pilih ruang</option>{rooms.map(x => <option key={x.id} value={x.id}>{x.namaRuang}</option>)}</select></label>
+        <label className="span-2">Deskripsi kerusakan<textarea value={form.deskripsi} onChange={e => setForm({ ...form, deskripsi: e.target.value })} rows="4" required/></label>
+        <label className="span-2 upload"><span>Ganti foto kondisi <small>(opsional)</small></span><input type="file" accept="image/*" onChange={e => setFile(e.target.files?.[0])}/>{file && <em>{file.name}</em>}</label>
+      </div>
+      {error && <div className="inline-error">{error}</div>}
+      <div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Batal</button><button className="primary" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan perubahan'} <CheckCircle2 size={16}/></button></div>
+    </form>
+  </Modal>
+}
+
+function DetailPage({ id, user, onBack, onToast }) {
+  const [item, setItem] = useState(null); const [error, setError] = useState(''); const [note, setNote] = useState(''); const [busy, setBusy] = useState(false); const [editOpen, setEditOpen] = useState(false)
+  const canWork = ['ADMIN', 'TEKNISI'].includes(user.role)
+  const isFinal = item && ['SELESAI', 'SELESAI_OTOMATIS'].includes(item.status)
+  async function reload() { const r = await api(`/laporan/${id}`); setItem(r.data) }
+  useEffect(() => { api(`/laporan/${id}`).then(r => setItem(r.data)).catch(e => setError(e.message)) }, [id])
+  async function act(path, body) { setBusy(true); try { await api(`/laporan/${id}/${path}`, { method: 'POST', body: JSON.stringify(body) }); onToast('Perubahan berhasil disimpan'); await reload(); setNote('') } catch (e) { onToast(e.message, 'error') } finally { setBusy(false) } }
+  async function updatePriority(prioritas) { if (!prioritas) return; setBusy(true); try { await api(`/laporan/${id}/prioritas`, { method: 'PATCH', body: JSON.stringify({ prioritas }) }); onToast('Prioritas & target SLA diperbarui'); await reload() } catch (e) { onToast(e.message, 'error') } finally { setBusy(false) } }
+  async function deleteWorkLog(jamId) { setBusy(true); try { await api(`/jam-kerja/${jamId}`, { method: 'DELETE' }); onToast('Catatan jam kerja dihapus'); await reload() } catch (e) { onToast(e.message, 'error') } finally { setBusy(false) } }
+  if (error) return <PageFrame title="Detail laporan" subtitle=""><ErrorBox text={error}/></PageFrame>
+  if (!item) return <Loading/>
+  const workLogs = item.penugasan?.flatMap(p => (p.jamKerja || []).map(j => ({ ...j, teknisiNama: p.teknisi?.nama, teknisiId: p.teknisiId }))) || []
+  return <PageFrame title={item.kode} subtitle={`${item.ruang?.gedung?.namaGedung || '-'} · ${item.ruang?.namaRuang || '-'}`} action={<div className="row-actions">{user.role === 'ADMIN' && !isFinal && <button className="secondary" onClick={() => setEditOpen(true)}>Edit laporan</button>}<button className="secondary" onClick={onBack}><ArrowLeft size={16}/> Kembali</button></div>}><div className="detail-grid"><div className="detail-main"><section className="panel detail-summary"><div className="detail-title"><div><p className="eyebrow">LAPORAN KERUSAKAN</p><h2>{item.deskripsi}</h2></div><StatusBadge value={item.status}/></div><div className="meta-grid"><div><span>Jenis kerusakan</span><b>{item.jenis?.namaJenis || '-'}</b></div><div><span>Prioritas</span>{user.role === 'ADMIN' && !isFinal ? <select className="inline-select" aria-label="Ubah prioritas" disabled={busy} value={item.prioritas || ''} onChange={e => updatePriority(e.target.value)}><option value="">Belum ditetapkan</option>{Object.entries(priorityLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select> : <b>{item.prioritas ? <StatusBadge value={item.prioritas} priority/> : 'Belum ditetapkan'}</b>}</div><div><span>Pelapor</span><b>{item.pelapor?.nama || '-'}</b></div><div><span>Target SLA</span><b>{fmtDate(item.targetSla)}</b></div></div>{item.fotoUrl && <img className="report-photo" src={item.fotoUrl} alt="Foto kondisi fasilitas"/>}</section><section className="panel"><div className="panel-head"><div><h3>Riwayat perkembangan</h3><p>Catatan aktivitas laporan</p></div></div><div className="timeline">{(item.perkembangan || []).map((x, i) => <div className="timeline-item" key={x.id || i}><div className="timeline-dot"/><div><strong>{shortStatus(x.status)} · {x.jenis}</strong><p>{x.catatan}</p><small>{fmtDate(x.waktu || x.tanggal)} · {x.user?.nama || 'Sistem'}</small></div></div>)}</div>{canWork && !isFinal && <div className="quick-update"><textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Tambahkan catatan perkembangan..."/><div><button className="secondary" disabled={busy || !note.trim()} onClick={() => act('perkembangan', { jenis: 'PROGRES', catatan: note.trim() })}>Simpan progres</button><button className="primary" disabled={busy || !note.trim()} onClick={() => act('selesai-teknisi', { catatan: note.trim() })}>Tandai selesai</button></div></div>}</section><ReporterConfirmation item={item} user={user} onToast={onToast} onSaved={reload} /></div><aside className="detail-side"><AssignmentPanel item={item} user={user} onToast={onToast} onSaved={reload} /><section className="panel"><h3>Jam kerja</h3><div className="big-number">{(item.jamKerja || workLogs).reduce((s, x) => s + Number(x.durasiJam || 0), 0).toFixed(1)} <small>jam</small></div><p className="muted">Total dari seluruh catatan teknisi.</p><WorkDurationSummary item={item}/>{workLogs.length > 0 && <div className="worklog-list">{workLogs.map(j => <div className="request-line" key={j.id}><div><strong>{j.teknisiNama || 'Teknisi'} · {j.durasiJam} jam</strong><span>{fmtDate(j.tanggal)}{j.catatan ? ` · ${j.catatan}` : ''}</span></div>{!isFinal && (user.role === 'ADMIN' || (user.role === 'TEKNISI' && Number(j.teknisiId) === Number(user.teknisiId))) && <button type="button" className="icon-button" title="Hapus jam kerja" disabled={busy} onClick={() => deleteWorkLog(j.id)}><X size={14}/></button>}</div>)}</div>}<WorkLogForm item={item} user={user} onToast={onToast} onSaved={reload} /></section><section className="panel"><h3>Pengajuan suku cadang</h3>{item.pengajuan?.length ? item.pengajuan.map(x => <div className="request-line" key={x.id}><div><strong>{x.namaBarang}</strong><span>{money(x.nilai)}</span></div><StatusBadge value={x.status}/></div>) : <p className="muted">Belum ada pengajuan.</p>}</section></aside></div>{editOpen && <EditReportModal item={item} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); reload() }} onToast={onToast}/>}</PageFrame>
+}
 
 function JobsPage({ compact = false, onNavigate }) { const [items, setItems] = useState(null); const [tab, setTab] = useState('aktif'); const [error, setError] = useState(''); async function load() { try { setItems((await api(`/pekerjaan-saya?status=${tab}`)).data || []) } catch (e) { setError(e.message); setItems([]) } } useEffect(() => { load() }, [tab]); if (error) return <ErrorBox text={error}/>; return <div>{!compact && <div className="tabs"><button className={tab === 'aktif' ? 'active' : ''} onClick={() => setTab('aktif')}>Aktif</button><button className={tab === 'selesai' ? 'active' : ''} onClick={() => setTab('selesai')}>Selesai</button><button className={tab === 'semua' ? 'active' : ''} onClick={() => setTab('semua')}>Semua</button></div>}{items === null ? <Loading/> : items.length === 0 ? <Empty title="Belum ada pekerjaan" text="Penugasan dari admin akan muncul di sini."/> : <section className="panel table-panel"><div className="table-wrap"><table><thead><tr><th>Laporan</th><th>Lokasi</th><th>Prioritas</th><th>Status</th><th>Jam saya</th><th/></tr></thead><tbody>{items.map(x => <tr key={x.penugasanId} onClick={() => onNavigate('detail', x.laporan.id)}><td><strong className="linkish">{x.laporan.kode}</strong><small>{x.laporan.jenis?.namaJenis}</small></td><td>{x.laporan.ruang?.gedung?.namaGedung}<small>{x.laporan.ruang?.namaRuang}</small></td><td><StatusBadge value={x.laporan.prioritas} priority/></td><td><StatusBadge value={x.laporan.status}/></td><td>{x.totalJamSaya ?? x.totalJam ?? 0} jam</td><td><ArrowLeft size={16} className="rotate-180"/></td></tr>)}</tbody></table></div></section>}</div> }
 
-function Management({ onNavigate }) { const [tab, setTab] = useState('monthly'); const [data, setData] = useState(null); const [month, setMonth] = useState(new Date().toISOString().slice(0,7)); const [error, setError] = useState(''); useEffect(() => { const path = tab === 'monthly' ? `/manajemen/laporan-bulanan?bulan=${month}` : `/manajemen/rekap-jam-kerja?bulan=${month}`; api(path).then(r => setData(r.data)).catch(e => setError(e.message)) }, [tab, month]); return <PageFrame title="Laporan Manajemen" subtitle="Gunakan data operasional untuk rapat dan evaluasi bulanan."><div className="report-tabs"><button className={tab === 'monthly' ? 'active' : ''} onClick={() => setTab('monthly')}><BarChart3 size={17}/> Laporan bulanan</button><button className={tab === 'hours' ? 'active' : ''} onClick={() => setTab('hours')}><Clock3 size={17}/> Rekap jam kerja</button><label><CalendarDays size={16}/><input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label></div>{error ? <ErrorBox text={error}/> : !data ? <Loading/> : tab === 'monthly' ? <><div className="kpi-grid compact"><Kpi icon={FileText} tone="blue" label="Total laporan" value={data.total} note={`Periode ${data.bulan}`}/><Kpi icon={CheckCircle2} tone="green" label="Selesai" value={(data.perGedung || []).reduce((s,x) => s + x.selesai, 0)} note="Sudah terselesaikan"/><Kpi icon={AlertTriangle} tone="orange" label="Terlambat" value={(data.perGedung || []).reduce((s,x) => s + x.terlambat, 0)} note="Perlu evaluasi"/></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h3>Per gedung</h3><p>Jumlah laporan dan penyelesaiannya</p></div></div><MiniTable rows={data.perGedung} labels={['Nama gedung','Total','Selesai','Terlambat']}/></section><section className="panel"><div className="panel-head"><div><h3>Per jenis kerusakan</h3><p>Distribusi kategori kerusakan</p></div></div><MiniTable rows={data.perJenis} labels={['Jenis','Total','Selesai','Terlambat']}/></section></div></> : <div className="panel table-panel"><div className="panel-head"><div><h3>Rekap jam kerja teknisi</h3><p>Periode {data.periode}</p></div></div><MiniTable rows={data.perTeknisi} labels={['Teknisi','Bidang','Total jam','Pekerjaan']} hours/></div>}</PageFrame> }
+function Management({ user, onToast }) {
+  const [tab, setTab] = useState('monthly'); const [data, setData] = useState(null); const [month, setMonth] = useState(new Date().toISOString().slice(0,7)); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  async function load() {
+    setError('')
+    try {
+      const path = tab === 'monthly' ? `/manajemen/laporan-bulanan?bulan=${month}` : `/manajemen/rekap-jam-kerja?bulan=${month}`
+      setData((await api(path)).data)
+    } catch (e) { setError(e.message) }
+  }
+  useEffect(() => { load() }, [tab, month])
+  async function runAutoClose() {
+    setBusy(true)
+    try {
+      const r = await api('/manajemen/auto-close/jalankan', { method: 'POST' })
+      onToast?.(`Auto-close dijalankan (${r.data?.ditutup ?? 0} laporan ditutup)`)
+      load()
+    } catch (e) { onToast?.(e.message, 'error') } finally { setBusy(false) }
+  }
+  function exportCsv() {
+    if (!data) return
+    const esc = v => `"${String(v ?? '').replaceAll('"', '""')}"`
+    let headers = []
+    let rows = []
+    if (tab === 'monthly') {
+      headers = ['Nama Gedung', 'Total', 'Selesai', 'Terlambat']
+      rows = (data.perGedung || []).map(x => [x.nama, x.total, x.selesai, x.terlambat])
+    } else {
+      headers = ['Teknisi', 'Bidang', 'Total Jam', 'Jumlah Pekerjaan']
+      rows = (data.perTeknisi || []).map(x => [x.namaTeknisi, x.bidang, x.totalJam, x.jumlahPekerjaan])
+    }
+    const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(esc).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${tab === 'monthly' ? 'laporan-bulanan' : 'rekap-jam-kerja'}-${month}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+  return <PageFrame title="Laporan Manajemen" subtitle="Gunakan data operasional untuk rapat dan evaluasi bulanan." action={<div className="row-actions"><button className="secondary" disabled={!data} onClick={exportCsv}><FileText size={16}/> Export CSV</button><button className="secondary" onClick={() => window.print()}>Cetak</button>{user?.role === 'ADMIN' && <button className="secondary" disabled={busy} onClick={runAutoClose}><RefreshCw size={16}/> {busy ? 'Memproses...' : 'Jalankan Auto-Close'}</button>}</div>}><div className="report-tabs"><button className={tab === 'monthly' ? 'active' : ''} onClick={() => setTab('monthly')}><BarChart3 size={17}/> Laporan bulanan</button><button className={tab === 'hours' ? 'active' : ''} onClick={() => setTab('hours')}><Clock3 size={17}/> Rekap jam kerja</button><label><CalendarDays size={16}/><input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label></div>{error ? <ErrorBox text={error}/> : !data ? <Loading/> : tab === 'monthly' ? <><div className="kpi-grid compact"><Kpi icon={FileText} tone="blue" label="Total laporan" value={data.total} note={`Periode ${data.bulan}`}/><Kpi icon={CheckCircle2} tone="green" label="Selesai" value={(data.perGedung || []).reduce((s,x) => s + x.selesai, 0)} note="Sudah terselesaikan"/><Kpi icon={AlertTriangle} tone="orange" label="Terlambat" value={(data.perGedung || []).reduce((s,x) => s + x.terlambat, 0)} note="Perlu evaluasi"/></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h3>Per gedung</h3><p>Jumlah laporan dan penyelesaiannya</p></div></div><MiniTable rows={data.perGedung} labels={['Nama gedung','Total','Selesai','Terlambat']}/></section><section className="panel"><div className="panel-head"><div><h3>Per jenis kerusakan</h3><p>Distribusi kategori kerusakan</p></div></div><MiniTable rows={data.perJenis} labels={['Jenis','Total','Selesai','Terlambat']}/></section></div></> : <div className="panel table-panel"><div className="panel-head"><div><h3>Rekap jam kerja teknisi</h3><p>Periode {data.periode}</p></div></div><MiniTable rows={data.perTeknisi} labels={['Teknisi','Bidang','Total jam','Pekerjaan']} hours/></div>}</PageFrame>
+}
 function MiniTable({ rows = [], labels, hours }) { if (!rows.length) return <Empty title="Belum ada data periode ini" text="Coba pilih periode lain atau pastikan catatan sudah tersedia."/>; return <div className="table-wrap"><table><thead><tr>{labels.map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((x,i) => <tr key={i}><td><strong>{hours ? x.namaTeknisi : x.nama}</strong></td><td>{hours ? x.bidang : x.total}</td><td>{hours ? `${x.totalJam} jam` : x.selesai}</td><td>{hours ? x.jumlahPekerjaan : x.terlambat}</td></tr>)}</tbody></table></div> }
 
 function WorkDurationSummary({ item }) {
@@ -242,10 +432,121 @@ function SparePartForm({ onClose, onSaved, onToast }) {
 
 function Requests({ user, onToast }) { const [items, setItems] = useState(null); const [filter, setFilter] = useState('MENUNGGU'); const [note, setNote] = useState({}); const [showForm, setShowForm] = useState(false); async function load() { try { setItems((await api(`/pengajuan?status=${filter}`)).data || []) } catch (e) { onToast(e.message, 'error'); setItems([]) } } useEffect(() => { load() }, [filter]); async function follow(id) { const text = (note[id] || '').trim(); if (!text) return; try { await api(`/pengajuan/${id}/tindak-lanjut`, { method: 'PATCH', body: JSON.stringify({ catatan: text }) }); onToast('Pengajuan ditindaklanjuti'); setNote(prev => ({ ...prev, [id]: '' })); load() } catch(e) { onToast(e.message, 'error') } } return <PageFrame title="Pengajuan Suku Cadang" subtitle="Pantau kebutuhan suku cadang di atas ambang Rp500.000." action={user.role === 'ADMIN' && <button className="primary" onClick={() => setShowForm(true)}><Plus size={17}/> Ajukan suku cadang</button>}><div className="info-banner"><Package size={18}/><span>Pengajuan dicatat Admin berdasarkan hasil pemeriksaan kebutuhan pekerjaan. Nilai harus lebih dari Rp500.000 dan laporan akan ditahan sampai ditindaklanjuti.</span></div><div className="toolbar"><div className="tabs"><button className={filter === 'MENUNGGU' ? 'active' : ''} onClick={() => setFilter('MENUNGGU')}>Menunggu</button><button className={filter === 'DITINDAKLANJUTI' ? 'active' : ''} onClick={() => setFilter('DITINDAKLANJUTI')}>Ditindaklanjuti</button></div></div>{items === null ? <Loading/> : items.length === 0 ? <Empty title="Tidak ada pengajuan" text="Pengajuan suku cadang dari laporan akan tampil di sini."/> : <div className="request-cards">{items.map(x => <section className="panel request-card" key={x.id}><div className="request-head"><div><span className="eyebrow">{x.laporan?.kode}</span><h3>{x.namaBarang}</h3><p>{x.laporan?.ruang?.gedung?.namaGedung} · {x.laporan?.ruang?.namaRuang}</p></div><strong className="price">{money(x.nilai)}</strong></div><p>{x.catatan || 'Tidak ada catatan tambahan.'}</p><StatusBadge value={x.status}/>{x.status === 'MENUNGGU' && ['ADMIN','KEUANGAN'].includes(user.role) && <div className="follow-form"><input value={note[x.id] || ''} onChange={e => setNote({ ...note, [x.id]: e.target.value })} placeholder="Catatan tindak lanjut wajib diisi"/><button className="primary" disabled={!note[x.id]?.trim()} onClick={() => follow(x.id)}>Tandai selesai</button></div>}</section>)}</div>}{showForm && <SparePartForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load() }} onToast={onToast}/>}</PageFrame> }
 
-function Master({ onToast }) { const [tab, setTab] = useState('teknisi'); const [items, setItems] = useState(null); useEffect(() => { api(`/master/${tab === 'teknisi' ? 'teknisi' : tab}`).then(r => setItems(r.data || [])).catch(e => { onToast(e.message, 'error'); setItems([]) }) }, [tab]); const tabs = [['teknisi','Teknisi'],['gedung','Gedung'],['jenis-kerusakan','Jenis kerusakan'],['users','Pengguna']]; return <PageFrame title="Data Master" subtitle="Kelola referensi operasional sistem helpdesk."><div className="report-tabs master-tabs">{tabs.map(([id,label]) => <button className={tab === id ? 'active' : ''} key={id} onClick={() => { setTab(id); setItems(null) }}><Settings2 size={16}/>{label}</button>)}</div>{items === null ? <Loading/> : items.length === 0 ? <Empty title="Data belum tersedia"/> : <div className="panel table-panel"><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Informasi</th><th>Status</th></tr></thead><tbody>{items.map(x => <tr key={x.id}><td><strong>{x.nama || x.namaGedung || x.namaJenis || x.username}</strong></td><td>{x.bidang || x.kontak || x.role || '-'}</td><td>{x.aktif === false ? 'Nonaktif' : 'Aktif'}</td></tr>)}</tbody></table></div></div>}</PageFrame> }
+function MasterModal({ tab, editing, buildings, onClose, onSaved, onToast }) {
+  const [form, setForm] = useState(() => ({
+    nama: editing?.nama || '',
+    bidang: editing?.bidang || 'LISTRIK',
+    namaGedung: editing?.namaGedung || '',
+    gedungId: editing?.gedungId ? String(editing.gedungId) : (buildings[0]?.id ? String(buildings[0].id) : ''),
+    namaRuang: editing?.namaRuang || '',
+    namaJenis: editing?.namaJenis || '',
+    username: '',
+    password: '',
+    role: 'PELAPOR',
+    kontak: '',
+  }))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(e) {
+    e.preventDefault()
+    setBusy(true); setError('')
+    try {
+      if (tab === 'teknisi') {
+        if (editing) await api(`/master/teknisi/${editing.id}`, { method: 'PUT', body: JSON.stringify({ nama: form.nama, bidang: form.bidang }) })
+        else {
+          const payload = { nama: form.nama, bidang: form.bidang }
+          if (form.username.trim()) { payload.username = form.username.trim(); payload.password = form.password }
+          await api('/master/teknisi', { method: 'POST', body: JSON.stringify(payload) })
+        }
+      } else if (tab === 'gedung') {
+        if (editing) await api(`/master/gedung/${editing.id}`, { method: 'PUT', body: JSON.stringify({ namaGedung: form.namaGedung }) })
+        else await api('/master/gedung', { method: 'POST', body: JSON.stringify({ namaGedung: form.namaGedung }) })
+      } else if (tab === 'ruang') {
+        const payload = { namaRuang: form.namaRuang, gedungId: Number(form.gedungId) }
+        if (editing) await api(`/master/ruang/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+        else await api('/master/ruang', { method: 'POST', body: JSON.stringify(payload) })
+      } else if (tab === 'jenis-kerusakan') {
+        const payload = { namaJenis: form.namaJenis, bidang: form.bidang }
+        if (editing) await api(`/master/jenis-kerusakan/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+        else await api('/master/jenis-kerusakan', { method: 'POST', body: JSON.stringify(payload) })
+      } else if (tab === 'users') {
+        const payload = { username: form.username, password: form.password, nama: form.nama, role: form.role }
+        if (form.kontak.trim()) payload.kontak = form.kontak.trim()
+        await api('/master/users', { method: 'POST', body: JSON.stringify(payload) })
+      }
+      onToast(editing ? 'Data master diperbarui' : 'Data master ditambahkan')
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const titles = { teknisi: 'Teknisi', gedung: 'Gedung', ruang: 'Ruang', 'jenis-kerusakan': 'Jenis Kerusakan', users: 'Pengguna' }
+  return <Modal title={`${editing ? 'Edit' : 'Tambah'} ${titles[tab]}`} onClose={onClose}>
+    <form className="modal-form" onSubmit={submit}>
+      <div className="form-grid">
+        {tab === 'teknisi' && <>
+          <label>Nama teknisi<input value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} required /></label>
+          <label>Bidang<select value={form.bidang} onChange={e => setForm({ ...form, bidang: e.target.value })}><option value="LISTRIK">LISTRIK</option><option value="AC">AC</option><option value="BANGUNAN">BANGUNAN</option><option value="AIR">AIR</option></select></label>
+          {!editing && <>
+            <label>Username akun (opsional)<input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} minLength={3} placeholder="Minimal 3 karakter" /></label>
+            <label>Password akun<input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength={6} required={Boolean(form.username.trim())} placeholder="Minimal 6 karakter" /></label>
+          </>}
+        </>}
+        {tab === 'gedung' && <label className="span-2">Nama gedung<input value={form.namaGedung} onChange={e => setForm({ ...form, namaGedung: e.target.value })} required /></label>}
+        {tab === 'ruang' && <>
+          <label>Gedung<select value={form.gedungId} onChange={e => setForm({ ...form, gedungId: e.target.value })} required>{buildings.map(b => <option key={b.id} value={b.id}>{b.namaGedung}</option>)}</select></label>
+          <label>Nama ruang<input value={form.namaRuang} onChange={e => setForm({ ...form, namaRuang: e.target.value })} required /></label>
+        </>}
+        {tab === 'jenis-kerusakan' && <>
+          <label>Nama jenis kerusakan<input value={form.namaJenis} onChange={e => setForm({ ...form, namaJenis: e.target.value })} required /></label>
+          <label>Bidang<select value={form.bidang} onChange={e => setForm({ ...form, bidang: e.target.value })}><option value="LISTRIK">LISTRIK</option><option value="AC">AC</option><option value="BANGUNAN">BANGUNAN</option><option value="AIR">AIR</option></select></label>
+        </>}
+        {tab === 'users' && <>
+          <label>Nama lengkap<input value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} required /></label>
+          <label>Peran<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}><option value="PELAPOR">Pelapor</option><option value="KEUANGAN">Bagian Keuangan</option><option value="KEPALA_UNIT">Kepala Unit</option><option value="ADMIN">Admin</option></select></label>
+          <label>Username<input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} minLength={3} required /></label>
+          <label>Password<input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength={6} required /></label>
+          {form.role === 'PELAPOR' && <label className="span-2">Kontak (opsional)<input value={form.kontak} onChange={e => setForm({ ...form, kontak: e.target.value })} placeholder="Nomor HP / WhatsApp" /></label>}
+        </>}
+      </div>
+      {error && <div className="inline-error">{error}</div>}
+      <div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Batal</button><button className="primary" disabled={busy}>{busy ? 'Menyimpan...' : 'Simpan'} <CheckCircle2 size={16} /></button></div>
+    </form>
+  </Modal>
+}
+
+function Master({ user, onToast }) {
+  const [tab, setTab] = useState('teknisi'); const [items, setItems] = useState(null); const [buildings, setBuildings] = useState([]); const [modal, setModal] = useState(null)
+  async function load(activeTab = tab) {
+    try {
+      const [r, g] = await Promise.all([api(`/master/${activeTab}`), activeTab === 'ruang' ? api('/master/gedung') : Promise.resolve(null)])
+      setItems(r.data || [])
+      if (g) setBuildings(g.data || [])
+    } catch (e) { onToast(e.message, 'error'); setItems([]) }
+  }
+  useEffect(() => { load(tab) }, [tab])
+
+  async function toggleActive(x) {
+    try {
+      if (tab === 'teknisi') await api(`/master/teknisi/${x.id}`, { method: 'PUT', body: JSON.stringify({ aktif: !x.aktif }) })
+      else if (tab === 'users') await api(`/master/users/${x.id}/aktif`, { method: 'PATCH', body: JSON.stringify({ aktif: !x.aktif }) })
+      onToast('Status diperbarui'); load()
+    } catch (e) { onToast(e.message, 'error') }
+  }
+  async function removeItem(x) {
+    try { await api(`/master/${tab}/${x.id}`, { method: 'DELETE' }); onToast('Data dihapus'); load() } catch (e) { onToast(e.message, 'error') }
+  }
+
+  const tabs = [['teknisi','Teknisi'],['gedung','Gedung'],['ruang','Ruang'],['jenis-kerusakan','Jenis kerusakan'],['users','Pengguna']]
+  return <PageFrame title="Data Master" subtitle="Kelola referensi operasional sistem helpdesk." action={<button className="primary" onClick={() => setModal({ editing: null })}><Plus size={17}/> Tambah</button>}><div className="report-tabs master-tabs">{tabs.map(([id,label]) => <button className={tab === id ? 'active' : ''} key={id} onClick={() => { setTab(id); setItems(null) }}><Settings2 size={16}/>{label}</button>)}</div>{items === null ? <Loading/> : items.length === 0 ? <Empty title="Data belum tersedia"/> : <div className="panel table-panel"><div className="table-wrap"><table><thead><tr><th>Nama</th><th>Informasi</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{items.map(x => <tr key={x.id}><td><strong>{x.nama || x.namaGedung || x.namaRuang || x.namaJenis || x.username}</strong>{tab === 'users' && <small>@{x.username}</small>}</td><td>{tab === 'ruang' ? (x.gedung?.namaGedung || '-') : (x.bidang || x.kontak || roleLabels[x.role] || '-')}</td><td>{x.aktif === false ? 'Nonaktif' : 'Aktif'}</td><td className="row-actions">{['teknisi', 'gedung', 'ruang', 'jenis-kerusakan'].includes(tab) && <button className="text-button" onClick={() => setModal({ editing: x })}>Edit</button>}{['teknisi', 'users'].includes(tab) && <button className="text-button" disabled={tab === 'users' && x.id === user?.id} onClick={() => toggleActive(x)}>{x.aktif === false ? 'Aktifkan' : 'Nonaktifkan'}</button>}{['gedung', 'ruang'].includes(tab) && <button className="text-button danger-text" onClick={() => removeItem(x)}>Hapus</button>}</td></tr>)}</tbody></table></div></div>}{modal && <MasterModal tab={tab} editing={modal.editing} buildings={buildings} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} onToast={onToast} />}</PageFrame>
+}
 function Modal({ title, children, onClose }) { return <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="modal"><div className="modal-head"><div><p className="eyebrow">FORM OPERASIONAL</p><h2>{title}</h2></div><button className="icon-button" onClick={onClose}><X size={19}/></button></div>{children}</div></div> }
 function Profile({ user, onToast }) { const [form, setForm] = useState({ passwordLama: '', passwordBaru: '' }); async function submit(e) { e.preventDefault(); try { await api('/auth/ganti-password', { method: 'POST', body: JSON.stringify(form) }); onToast('Password berhasil diganti'); setForm({ passwordLama: '', passwordBaru: '' }) } catch(e) { onToast(e.message, 'error') } } return <PageFrame title="Profil & Keamanan" subtitle="Kelola informasi akun dan kredensial Anda."><section className="panel profile-card"><div className="profile-cover"><div className="avatar large">{user.nama?.slice(0,1)}</div><div><h2>{user.nama}</h2><p>{roleLabels[user.role]} · @{user.username}</p></div></div><form className="password-form" onSubmit={submit}><h3>Ganti password</h3><div className="form-grid"><PasswordField label="Password lama" value={form.passwordLama} onChange={e => setForm({ ...form, passwordLama: e.target.value })} /><PasswordField label="Password baru" minLength="6" value={form.passwordBaru} onChange={e => setForm({ ...form, passwordBaru: e.target.value })} /></div><button className="primary">Simpan password</button></form></section></PageFrame> }
 
-function App() { const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('helpdesk_user') || 'null')); const [page, setPage] = useState('dashboard'); const [detailId, setDetailId] = useState(null); const [collapsed, setCollapsed] = useState(false); const [toast, setToast] = useState(null); const [filter, setFilter] = useState({}); const [createOpen, setCreateOpen] = useState(false); const [reportsRefreshKey, setReportsRefreshKey] = useState(0); const navigate = (p, idOrNew, f = {}) => { if (p === 'detail') setDetailId(idOrNew); if (p === 'laporan' && idOrNew === true) setCreateOpen(true); setFilter(f); setPage(p) }; const notify = (message, type = 'success') => { setToast({ message, type }); setTimeout(() => setToast(null), 4500) }; if (!user) return <Login onLogin={setUser}/>; function logout() { localStorage.removeItem('helpdesk_token'); localStorage.removeItem('helpdesk_user'); setUser(null) } function content() { if (page === 'dashboard') return <Dashboard user={user} onNavigate={navigate}/>; if (page === 'laporan') return <PageFrame title="Laporan Kerusakan" subtitle="Kelola laporan fasilitas dari pencatatan hingga penyelesaian." action={user.role === 'ADMIN' ? <button className="primary" onClick={() => setCreateOpen(true)}><Plus size={17}/> Catat laporan</button> : null}><ReportsPage onNavigate={navigate} initialFilters={filter} refreshKey={reportsRefreshKey}/></PageFrame>; if (page === 'detail') return <DetailPage id={detailId} user={user} onBack={() => setPage(user.role === 'TEKNISI' ? 'pekerjaan' : 'laporan')} onToast={notify}/>; if (page === 'pekerjaan') return <PageFrame title="Pekerjaan Saya" subtitle="Tugas yang ditugaskan kepada Anda."><JobsPage onNavigate={navigate}/></PageFrame>; if (page === 'manajemen') return <Management onNavigate={navigate}/>; if (page === 'pengajuan') return <Requests user={user} onToast={notify}/>; if (page === 'master') return <Master onToast={notify}/>; return <Profile user={user} onToast={notify}/> } return <div className="app-shell"><Sidebar user={user} page={page} setPage={setPage} collapsed={collapsed} setCollapsed={setCollapsed} onLogout={logout}/><main className="main"><Topbar user={user} page={page} onMenu={() => setCollapsed(!collapsed)} onRefresh={() => window.location.reload()}/>{content()}</main>{createOpen && <ReportForm onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); setReportsRefreshKey(k => k + 1); notify('Laporan berhasil disimpan'); setPage('laporan') }}/>}<Toast toast={toast} onClose={() => setToast(null)}/></div> }
+function App() { const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('helpdesk_user') || 'null')); const [page, setPage] = useState('dashboard'); const [detailId, setDetailId] = useState(null); const [collapsed, setCollapsed] = useState(false); const [toast, setToast] = useState(null); const [filter, setFilter] = useState({}); const [createOpen, setCreateOpen] = useState(false); const [reportsRefreshKey, setReportsRefreshKey] = useState(0); const navigate = (p, idOrNew, f = {}) => { if (p === 'detail') setDetailId(idOrNew); if (p === 'laporan' && idOrNew === true) setCreateOpen(true); setFilter(f); setPage(p) }; const notify = (message, type = 'success') => { setToast({ message, type }); setTimeout(() => setToast(null), 4500) }; if (!user) return <Login onLogin={setUser}/>; function logout() { localStorage.removeItem('helpdesk_token'); localStorage.removeItem('helpdesk_user'); setUser(null) } function content() { if (page === 'dashboard') return <Dashboard user={user} onNavigate={navigate}/>; if (page === 'laporan') return <PageFrame title="Laporan Kerusakan" subtitle="Kelola laporan fasilitas dari pencatatan hingga penyelesaian." action={user.role === 'ADMIN' ? <button className="primary" onClick={() => setCreateOpen(true)}><Plus size={17}/> Catat laporan</button> : null}><ReportsPage onNavigate={navigate} initialFilters={filter} refreshKey={reportsRefreshKey}/></PageFrame>; if (page === 'detail') return <DetailPage id={detailId} user={user} onBack={() => setPage(user.role === 'TEKNISI' ? 'pekerjaan' : 'laporan')} onToast={notify}/>; if (page === 'pekerjaan') return <PageFrame title="Pekerjaan Saya" subtitle="Tugas yang ditugaskan kepada Anda."><JobsPage onNavigate={navigate}/></PageFrame>; if (page === 'manajemen') return <Management user={user} onToast={notify}/>; if (page === 'pengajuan') return <Requests user={user} onToast={notify}/>; if (page === 'master') return <Master user={user} onToast={notify}/>; return <Profile user={user} onToast={notify}/> } return <div className="app-shell"><Sidebar user={user} page={page} setPage={setPage} collapsed={collapsed} setCollapsed={setCollapsed} onLogout={logout}/><main className="main"><Topbar user={user} page={page} onMenu={() => setCollapsed(!collapsed)} onRefresh={() => window.location.reload()} onNavigate={navigate}/>{content()}</main>{createOpen && <ReportForm onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); setReportsRefreshKey(k => k + 1); notify('Laporan berhasil disimpan'); setPage('laporan') }}/>}<Toast toast={toast} onClose={() => setToast(null)}/></div> }
 
 createRoot(document.getElementById('root')).render(<App />)

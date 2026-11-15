@@ -5,7 +5,9 @@ Aplikasi web **full-stack** untuk pencatatan, penugasan, pemantauan SLA, dan pel
 **Tech Stack:**
 - **Backend:** Node.js (`>= 18`) · Express · Prisma ORM · PostgreSQL (Supabase) / SQLite · JWT · Bcrypt · Multer · Zod · Helmet · CORS
 - **Frontend:** React · Vite · Lucide React
-- **Pengujian:** Node.js Test Runner (`node --test`) · Supertest
+- **Pengujian:** Node.js Test Runner (`node --test`) · Supertest · Playwright
+
+> Dokumentasi sistem lengkap dari awal hingga akhir tersedia di [docs/DOKUMENTASI_SISTEM.md](docs/DOKUMENTASI_SISTEM.md) dan matriks pengujian di [docs/QA_TEST_CASES.md](docs/QA_TEST_CASES.md).
 
 ---
 
@@ -32,7 +34,12 @@ Helpdesk-fasilitas-kampus/
 │   ├── schema.prisma       # Definisi model Prisma (PostgreSQL / SQLite)
 │   ├── seed.js             # Pengisian data awal (gedung, ruang, jenis, akun uji)
 │   └── prepare-sqlite.js   # Helper pembuatan file SQLite sebelum db push
-├── tests/                  # Uji end-to-end API (api.test.js)
+├── docs/                   # Dokumentasi sistem & QA
+│   ├── DOKUMENTASI_SISTEM.md # Dokumentasi lengkap sistem end-to-end
+│   └── QA_TEST_CASES.md    # Matriks skenario pengujian QA
+├── tests/                  # Uji otomatis
+│   ├── api.test.js         # Uji integrasi API end-to-end (SQLite terisolasi)
+│   └── e2e.spec.js         # Uji E2E browser (Playwright)
 ├── uploads/                # Direktori penyimpanan foto kerusakan (BR-03)
 ├── database/               # Arsip skema MariaDB lama (tidak dipakai backend aktif)
 └── .env.example            # Contoh konfigurasi environment backend
@@ -48,8 +55,8 @@ Sistem membagi akses fitur pada frontend dan backend ke dalam 5 peran (`User.rol
 
 | Peran | Fitur Utama |
 |---|---|
-| **ADMIN** | Dashboard KPI & peringatan SLA terlambat; catat laporan baru (WhatsApp/Telepon/Datang Langsung + foto); tetapkan prioritas & target SLA; tugaskan multi-teknisi sesuai bidang; ajukan suku cadang (`> Rp500.000`) & tindak lanjuti; konfirmasi/buka kembali laporan; kelola Data Master (Teknisi, Gedung, Jenis Kerusakan, Pengguna); lihat Laporan Manajemen (bulanan & rekap jam kerja); jalankan auto-close manual; Profil & ganti password. |
-| **KEPALA_UNIT** | Dashboard KPI & daftar laporan terlambat; lihat daftar & detail seluruh laporan; pantau Pengajuan Suku Cadang; akses Laporan Manajemen (laporan bulanan per gedung/jenis kerusakan & rekap jam kerja teknisi); Profil & ganti password. |
+| **ADMIN** | Dashboard KPI & peringatan SLA terlambat; catat, edit, & ganti foto laporan (WhatsApp/Telepon/Datang Langsung); tetapkan/ubah prioritas & target SLA; tugaskan/batalkan multi-teknisi sesuai bidang; ajukan suku cadang (`> Rp500.000`) & tindak lanjuti; konfirmasi/buka kembali laporan; kelola CRUD Data Master (Teknisi, Gedung, Ruang, Jenis Kerusakan, Pengguna); lihat & ekspor (CSV/Cetak) Laporan Manajemen; jalankan auto-close manual; Profil & ganti password. |
+| **KEPALA_UNIT** | Dashboard KPI & daftar laporan terlambat; lihat daftar & detail seluruh laporan; pantau Pengajuan Suku Cadang; akses & ekspor (CSV/Cetak) Laporan Manajemen (laporan bulanan per gedung/jenis kerusakan & rekap jam kerja teknisi); Profil & ganti password. |
 | **TEKNISI** | Halaman **Pekerjaan Saya** (tab Aktif, Selesai, Semua); lihat detail penugasan; tambah catatan perkembangan (`PROGRES`, `PEMERIKSAAN`, `PERBAIKAN`); tandai pekerjaan selesai (`selesai-teknisi`); catat jam kerja individual per penugasan; Profil & ganti password. |
 | **KEUANGAN** | Dashboard Keuangan (ringkasan pengajuan menunggu, total nilai menunggu, dan riwayat selesai); halaman **Pengajuan Suku Cadang**; catat tindak lanjut pengajuan agar laporan yang ditahan (`DITAHAN`) dapat dilanjutkan kembali; Profil & ganti password. |
 | **PELAPOR** | Dashboard Pelapor; lihat daftar & detail laporan miliknya sendiri; berikan konfirmasi hasil perbaikan (`SELESAI` atau `BELUM_SELESAI`); Profil & ganti password. |
@@ -119,7 +126,7 @@ npm run preview             # pratinjau hasil build
 npm test
 ```
 
-> **Catatan:** `tests/api.test.js` menguji alur API menggunakan database SQLite terpisah (`prisma/test.db`). Karena `prisma/schema.prisma` saat ini dikonfigurasi untuk `provider = "postgresql"`, pastikan `provider` diubah ke `"sqlite"` (tanpa `directUrl`) apabila ingin menjalankan `npm test` secara lokal dengan SQLite.
+> **Catatan:** `tests/api.test.js` otomatis membuat skema & Prisma Client SQLite terisolasi di `tests/tmp/` (`tests/tmp/test.db`), sehingga `npm test` dapat langsung dijalankan secara lokal tanpa mengubah `provider = "postgresql"` pada `prisma/schema.prisma`.
 
 ---
 

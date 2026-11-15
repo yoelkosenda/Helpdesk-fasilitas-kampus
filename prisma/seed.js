@@ -2,7 +2,9 @@
 // dan akun uji untuk setiap aktor (NFR-04).
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = process.env.PRISMA_CLIENT_PATH
+  ? require(process.env.PRISMA_CLIENT_PATH)
+  : require('@prisma/client');
 
 const prisma = new PrismaClient();
 const PASSWORD = process.env.SEED_PASSWORD;
