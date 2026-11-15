@@ -96,7 +96,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const f = req.valid.query;
     const and = [whereByRole(req.user)];
-    if (f.status) and.push({ status: { in: f.status.split(',').map((s) => s.trim().toUpperCase()) } });
+    if (f.status) {
+      const statuses = f.status.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+      if (statuses.length) and.push({ status: { in: statuses } });
+    }
     if (f.prioritas) and.push({ prioritas: f.prioritas });
     if (f.ruangId) and.push({ ruangId: f.ruangId });
     if (f.gedungId) and.push({ ruang: { gedungId: f.gedungId } });
@@ -239,7 +242,14 @@ router.put(
     const id = toInt(req.params.id);
     const lap = await getLaporanOrThrow(id, includeRingkas);
     assertBelumFinal(lap);
-    await prisma.laporan.update({ where: { id }, data: req.valid.body });
+    const b = req.valid.body;
+    if (b.ruangId !== undefined && !(await prisma.ruang.findUnique({ where: { id: b.ruangId } }))) {
+      throw badRequest('Ruang tidak ditemukan');
+    }
+    if (b.jenisId !== undefined && !(await prisma.jenisKerusakan.findUnique({ where: { id: b.jenisId } }))) {
+      throw badRequest('Jenis kerusakan tidak ditemukan');
+    }
+    await prisma.laporan.update({ where: { id }, data: b });
     ok(res, serialize(await getLaporanOrThrow(id), req), 'Laporan diperbarui');
   }),
 );
@@ -249,16 +259,18 @@ router.put(
   authorize(ADMIN),
   upload.single('foto'),
   asyncHandler(async (req, res) => {
-    const id = toInt(req.params.id);
     if (!req.file) throw badRequest('File foto wajib dikirim pada field "foto"');
-    const lap = await prisma.laporan.findUnique({ where: { id } });
-    if (!lap) {
+    try {
+      const id = toInt(req.params.id);
+      const lap = await getLaporanOrThrow(id, includeRingkas);
+      assertBelumFinal(lap);
+      await prisma.laporan.update({ where: { id }, data: { foto: req.file.filename } });
+      hapusFoto(lap.foto);
+      ok(res, serialize(await getLaporanOrThrow(id), req), 'Foto diperbarui');
+    } catch (err) {
       hapusFoto(req.file.filename);
-      throw badRequest('Laporan tidak ditemukan');
+      throw err;
     }
-    await prisma.laporan.update({ where: { id }, data: { foto: req.file.filename } });
-    hapusFoto(lap.foto);
-    ok(res, serialize(await getLaporanOrThrow(id), req), 'Foto diperbarui');
   }),
 );
 

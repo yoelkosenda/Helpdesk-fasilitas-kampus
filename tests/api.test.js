@@ -249,3 +249,24 @@ test('Kepala Unit: dashboard, terlambat, laporan bulanan, rekap jam kerja', asyn
   assert.equal((await api('get', '/api/manajemen/dashboard', 'teknisi.listrik')).status, 403);
   assert.equal((await api('post', '/api/laporan', 'kepala').send({})).status, 403);
 });
+
+test('validasi update laporan & larangan ubah foto/jam kerja setelah selesai', async () => {
+  const r = await ref();
+  const lap = await buatLaporan(r, { prioritas: 'NORMAL' });
+
+  // Update dengan ruangId / jenisId tidak valid ditolak 400
+  assert.equal((await api('put', `/api/laporan/${lap.id}`, 'admin').send({ ruangId: 999999 })).status, 400);
+  assert.equal((await api('put', `/api/laporan/${lap.id}`, 'admin').send({ jenisId: 999999 })).status, 400);
+
+  // Selesaikan laporan
+  const assign = await api('post', `/api/laporan/${lap.id}/penugasan`, 'admin').send({ teknisiIds: [r.tek.LISTRIK.id] });
+  const penugasanId = assign.body.data.penugasan[0].id;
+  await api('post', `/api/laporan/${lap.id}/selesai-teknisi`, 'teknisi.listrik').send({ catatan: 'Selesai' });
+  await api('post', `/api/laporan/${lap.id}/konfirmasi`, 'admin').send({ hasil: 'SELESAI' });
+
+  // Setelah SELESAI, ubah foto dan catat jam kerja ditolak 409
+  const fotoRes = await api('put', `/api/laporan/${lap.id}/foto`, 'admin').attach('foto', PNG, 'foto.png');
+  assert.equal(fotoRes.status, 409);
+  const jamRes = await api('post', `/api/penugasan/${penugasanId}/jam-kerja`, 'teknisi.listrik').send({ durasiJam: 1 });
+  assert.equal(jamRes.status, 409);
+});
