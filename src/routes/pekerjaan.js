@@ -101,7 +101,7 @@ router.post(
     if (STATUS_FINAL.includes(p.laporan.status)) throw conflict('Laporan sudah selesai/ditutup');
     if (p.statusTugas === 'DIBATALKAN') throw conflict('Penugasan sudah dibatalkan');
     const tanggal = req.valid.body.tanggal || new Date();
-    if (tanggal > new Date(Date.now() + 60 * 60 * 1000)) throw badRequest('Tanggal jam kerja tidak boleh di masa depan');
+    if (tanggal > new Date(Date.now() + 14 * 60 * 60 * 1000)) throw badRequest('Tanggal jam kerja tidak boleh di masa depan');
     const jam = await prisma.jamKerja.create({ data: { ...req.valid.body, tanggal, penugasanId: p.id } });
     ok(res, jam, 'Jam kerja berhasil dicatat', 201);
   }),
