@@ -198,7 +198,7 @@ Seluruh endpoint selain `/`, `/api/health`, dan `/api/auth/login` membutuhkan he
    - Buka detail laporan untuk **Edit laporan**, ubah **Prioritas**, tugaskan/batalkan **Teknisi**, atau pantau timeline.
    - Kelola pengajuan suku cadang di menu **Pengajuan Suku Cadang** dan referensi operasional di menu **Data Master** (Tambah, Edit, Aktif/Nonaktifkan, Hapus).
    - Di menu **Laporan Manajemen**, gunakan **Export CSV**, **Cetak**, atau **Jalankan Auto-Close**.
-4. **Kepala Unit:** Pantau KPI keterlambatan di Dashboard, periksa detail laporan, dan unduh/cetak rekap di **Laporan Manajemen**.
+4. **Kepala Unit:** Pantau KPI keterlambatan di Dashboard, periksa detail laporan, dan lihat daftar pekerjaan belum selesai, daftar laporan terlambat SLA, laporan bulanan per gedung/jenis, serta rekap jam kerja per teknisi dan per pekerjaan di **Laporan Manajemen** (termasuk Export CSV & Cetak).
 5. **Teknisi:** Buka **Pekerjaan Saya**, pilih tiket, tambahkan catatan progres, catat durasi jam kerja, lalu klik **Tandai selesai** setelah perbaikan selesai.
 6. **Bagian Keuangan:** Buka **Pengajuan Suku Cadang** (atau klik dari Dashboard Keuangan), isi catatan tindak lanjut, lalu klik **Tandai selesai** agar pekerjaan dapat dilanjutkan.
 7. **Pelapor:** Buka laporan yang berstatus **Menunggu Konfirmasi** dan pilih **Sudah selesai** atau **Belum selesai** beserta catatan tambahan.

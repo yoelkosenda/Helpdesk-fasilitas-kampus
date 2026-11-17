@@ -4,7 +4,7 @@ Dokumen ini berisi daftar *test case* Quality Assurance (QA) berdasarkan spesifi
 
 **Akun Uji Seed (`prisma/seed.js`):**
 - `admin` (`ADMIN`) · `kepala` (`KEPALA_UNIT`) · `keuangan` (`KEUANGAN`) · `pelapor` (`PELAPOR`)
-- `teknisi.listrik`, `teknisi.ac`, `teknisi.bangunan`, `teknisi.air` (`TEKNISI`)
+- `teknisi.listrik`, `teknisi.listrik2`, `teknisi.ac`, `teknisi.ac2`, `teknisi.bangunan`, `teknisi.air` (`TEKNISI`)
 
 ---
 
@@ -57,7 +57,7 @@ Dokumen ini berisi daftar *test case* Quality Assurance (QA) berdasarkan spesifi
 | **TC-TUGAS-03** | Batalkan penugasan teknisi terakhir | `ADMIN` | `DELETE /api/laporan/:id/penugasan/:penugasanId` | Batalkan satu-satunya penugasan aktif | `statusTugas: "DIBATALKAN"`, status laporan kembali ke `BARU` | Automated (`api.test.js`) |
 | **TC-KERJA-01** | Teknisi lihat pekerjaan saya (`aktif`, `selesai`, `semua`) | `TEKNISI` | `GET /api/pekerjaan-saya?status=...` · Pekerjaan Saya | Buka tab Aktif, Selesai, Semua | Terurut `DARURAT > TINGGI > NORMAL` lalu `targetSla`; kolom "Jam saya" menampilkan `totalJamSaya` | Sebagian (`api.test.js`) |
 | **TC-KERJA-02** | Catat perkembangan (`PROGRES`, `PEMERIKSAAN`, `PERBAIKAN`) | `TEKNISI` | `POST /api/laporan/:id/perkembangan` · Detail Laporan | Isi catatan progres (bukan spasi kosong) | Status berubah `DITUGASKAN → DIKERJAKAN`; timeline menampilkan waktu (`x.waktu`) & nama user | Automated (`api.test.js`) |
-| **TC-KERJA-03** | Catat & hapus jam kerja individual (`BR-10`) | `TEKNISI`, `ADMIN` | `POST /api/penugasan/:id/jam-kerja`, `DELETE /api/jam-kerja/:id` | 1) Input `durasiJam: 2.5`<br>2) Input `0`, `25`, atau tanggal masa depan<br>3) Input pada laporan `SELESAI` | 1) `201` tersimpan<br>2) `400` ditolak<br>3) `409` ditolak | Sebagian (`api.test.js`) |
+| **TC-KERJA-03** | Catat & hapus jam kerja individual (`BR-10`) | `TEKNISI`, `ADMIN` | `POST /api/penugasan/:id/jam-kerja`, `DELETE /api/jam-kerja/:id` | 1) Input `durasiJam: 2.5`<br>2) Input `0`, `25`, atau tanggal masa depan<br>3) Input pada laporan `SELESAI` | 1) `201` tersimpan<br>2) `400` ditolak<br>3) `409` ditolak | Automated (`api.test.js`, `e2e.spec.js`) |
 | **TC-KERJA-04** | Teknisi nyatakan pekerjaan selesai (`BR-12`) | `TEKNISI` | `POST /api/laporan/:id/selesai-teknisi`, `PATCH /api/laporan/:id/status` | Kirim catatan penyelesaian pada laporan `DIKERJAKAN` | Status jadi `MENUNGGU_KONFIRMASI`, `tglSelesaiTeknisi` terisi | Automated (`api.test.js`) |
 
 ---
@@ -88,7 +88,7 @@ Dokumen ini berisi daftar *test case* Quality Assurance (QA) berdasarkan spesifi
 | ID | Skenario | Peran | Endpoint / Halaman | Langkah & Input | Expected Result | Cakupan Saat Ini |
 |---|---|---|---|---|---|---|
 | **TC-MGT-01** | Laporan bulanan per gedung & jenis (`REQ-17`) | `ADMIN`, `KEPALA_UNIT` | `GET /api/manajemen/laporan-bulanan?bulan=YYYY-MM` | 1) Bulan berisi data<br>2) Bulan kosong (`2000-01`) | 1) Agregasi `perGedung`, `perJenis`, `matriks`, `rincian` akurat<br>2) `total: 0`, pesan `"Data tidak tersedia untuk periode ini"` | Automated (`api.test.js`) |
-| **TC-MGT-02** | Rekap jam kerja per teknisi & pekerjaan (`REQ-18`) | `ADMIN`, `KEPALA_UNIT` | `GET /api/manajemen/rekap-jam-kerja` | Filter per bulan / teknisi / laporan | `totalJam` dan `jumlahPekerjaan` sesuai catatan `JamKerja` | Automated (`api.test.js`) |
+| **TC-MGT-02** | Rekap jam kerja per teknisi & pekerjaan (`REQ-18`) | `ADMIN`, `KEPALA_UNIT` | `GET /api/manajemen/rekap-jam-kerja` | Filter per bulan / teknisi / laporan | `totalJam` dan `jumlahPekerjaan` sesuai catatan `JamKerja`, tampil per teknisi dan per pekerjaan | Automated (`api.test.js`, `e2e.spec.js`) |
 | **TC-MST-01** | CRUD Data Master (`gedung`, `ruang`, `jenis-kerusakan`, `teknisi`, `users`) | `ADMIN` | `/api/master/*` · Halaman Data Master | Tambah, ubah, nonaktifkan akun/teknisi; cek penolakan nonaktifkan akun sendiri | Operasi berhasil (`200`/`201`); nonaktifkan akun sendiri ditolak `400` | Sebagian di `api.test.js` (`users`, `teknisi`, `aktif`) |
 
 ---

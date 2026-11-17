@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { test, expect } = require('@playwright/test');
 
-const SEED_PASSWORD = process.env.SEED_PASSWORD;
+const SEED_PASSWORD = process.env.SEED_PASSWORD || 'e2e-seed-password-123';
 const PNG_PATH = path.join(__dirname, 'tmp', 'e2e-foto.png');
 
 test.beforeAll(() => {
@@ -59,31 +59,36 @@ test('Playwright E2E: login gagal, alur penuh Admin → Teknisi → Konfirmasi, 
   const timelineDate = await page.locator('.timeline-item small').first().textContent();
   expect(timelineDate).not.toMatch(/^-/);
 
-  const firstTech = page.locator('.assignment-options input[type="checkbox"]').first();
+  const firstTech = page.locator('.assignment-options input[type="checkbox"]').nth(0);
+  const secondTech = page.locator('.assignment-options input[type="checkbox"]').nth(1);
   await firstTech.check();
+  await secondTech.check();
   await page.getByRole('button', { name: /Simpan penugasan/i }).click();
   await expect(page.locator('.toast')).toContainText(/Penugasan berhasil disimpan/i);
 
-  // 4. Logout & Login sebagai Teknisi (ambil sesuai bidang jenis pertama, cek semua teknisi atau cek yang ditugaskan)
-  // Cari nama teknisi yang ditugaskan dari panel penugasan
-  const assigneeName = (await page.locator('.assignee strong').first().textContent()).trim();
+  // 4. Logout & Login sebagai Teknisi 1 dan Teknisi 2 pada pekerjaan yang sama (TC-11)
   const techUserMap = {
     Budi: 'teknisi.listrik',
+    Hendra: 'teknisi.listrik2',
     Andi: 'teknisi.ac',
+    Olaf: 'teknisi.ac2',
     Rudi: 'teknisi.bangunan',
     Joko: 'teknisi.air',
   };
-  const techUsername = Object.entries(techUserMap).find(([nama]) => assigneeName.includes(nama))?.[1] || 'teknisi.listrik';
+  const assignee1 = (await page.locator('.assignee strong').nth(0).textContent()).trim();
+  const assignee2 = (await page.locator('.assignee strong').nth(1).textContent()).trim();
+  const techUser1 = Object.entries(techUserMap).find(([nama]) => assignee1.includes(nama))?.[1] || 'teknisi.listrik';
+  const techUser2 = Object.entries(techUserMap).find(([nama]) => assignee2.includes(nama))?.[1] || 'teknisi.listrik2';
 
   await page.getByRole('button', { name: /Keluar/i }).click();
-  await loginAs(page, techUsername);
+  await loginAs(page, techUser1);
   await expect(page.getByRole('heading', { name: /Pekerjaan Saya/i })).toBeVisible();
 
   const jobRow = page.locator('tbody tr', { hasText: kodeLaporan }).first();
   await expect(jobRow).toBeVisible();
   await jobRow.click();
 
-  // Catat jam kerja 2.5 jam
+  // Teknisi 1 catat jam kerja 2.5 jam
   await page.getByPlaceholder('Contoh: 2.5').fill('2.5');
   await page.getByRole('button', { name: /Simpan jam kerja/i }).click();
   await expect(page.locator('.toast')).toContainText(/Jam kerja berhasil dicatat/i);
@@ -98,8 +103,18 @@ test('Playwright E2E: login gagal, alur penuh Admin → Teknisi → Konfirmasi, 
   await expect(page.getByRole('heading', { name: /Pekerjaan Saya/i })).toBeVisible();
   await expect(page.locator('tbody tr', { hasText: kodeLaporan }).first()).toContainText('2.5 jam');
 
-  // Buka lagi & tandai selesai
+  // Teknisi 2 login pada laporan yang sama dan catat jam kerja 1.5 jam (TC-11)
+  await page.getByRole('button', { name: /Keluar/i }).click();
+  await loginAs(page, techUser2);
+  await expect(page.getByRole('heading', { name: /Pekerjaan Saya/i })).toBeVisible();
   await page.locator('tbody tr', { hasText: kodeLaporan }).first().click();
+  await page.getByPlaceholder('Contoh: 2.5').fill('1.5');
+  await page.getByRole('button', { name: /Simpan jam kerja/i }).click();
+  await expect(page.locator('.toast')).toContainText(/Jam kerja berhasil dicatat/i);
+  await expect(page.locator('.worklog-list')).toContainText('2.5 jam');
+  await expect(page.locator('.worklog-list')).toContainText('1.5 jam');
+
+  // Teknisi 2 tandai selesai
   await page.getByPlaceholder(/Tambahkan catatan perkembangan/i).fill('Perbaikan selesai 100%');
   await page.getByRole('button', { name: /Tandai selesai/i }).click();
   await expect(page.locator('.toast')).toContainText(/Perubahan berhasil disimpan/i);
@@ -116,8 +131,12 @@ test('Playwright E2E: login gagal, alur penuh Admin → Teknisi → Konfirmasi, 
 
   await page.getByRole('button', { name: /Laporan Manajemen/i }).click();
   await expect(page.getByRole('heading', { name: /Laporan Manajemen/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Daftar pekerjaan belum selesai/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Daftar laporan terlambat SLA/i })).toBeVisible();
   await page.getByRole('button', { name: /Rekap jam kerja/i }).click();
-  await expect(page.getByRole('heading', { name: /Rekap jam kerja teknisi/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Ringkasan per teknisi/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Rincian jam kerja per pekerjaan/i })).toBeVisible();
+  await expect(page.locator('table').last()).toContainText(kodeLaporan);
 
   await page.getByRole('button', { name: /Data Master/i }).click();
   await expect(page.getByRole('heading', { name: /Data Master/i })).toBeVisible();

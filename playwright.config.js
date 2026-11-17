@@ -15,13 +15,13 @@ module.exports = defineConfig({
   },
   webServer: [
     {
-      command: 'node src/server.js',
+      command: 'node tests/e2e-server.js',
       port: 3100,
       reuseExistingServer: false,
       env: {
         ...process.env,
         PORT: '3100',
-        DATABASE_URL: process.env.E2E_DATABASE_URL || 'file:./e2e.db',
+        SEED_PASSWORD: process.env.SEED_PASSWORD || 'e2e-seed-password-123',
         AKTIFKAN_SCHEDULER: 'false',
         UPLOAD_DIR: 'tests/tmp/e2e-uploads',
       },

@@ -72,7 +72,13 @@ async function ref() {
   return {
     ruang: g.body.data[0].ruang[0],
     listrikPadam: j.body.data.find((x) => x.namaJenis === 'Listrik padam'),
-    tek: Object.fromEntries(t.body.data.map((x) => [x.bidang, x])),
+    tek: Object.fromEntries(
+      ['LISTRIK', 'AC', 'BANGUNAN', 'AIR'].map((b) => [
+        b,
+        t.body.data.find((x) => x.bidang === b && ['Budi (Listrik)', 'Andi (AC)', 'Rudi (Bangunan)', 'Joko (Air)'].includes(x.nama)) ||
+          t.body.data.find((x) => x.bidang === b),
+      ]),
+    ),
   };
 }
 

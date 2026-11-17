@@ -40,6 +40,8 @@ const TEKNISI = [
   { username: 'teknisi.ac', nama: 'Andi (AC)', bidang: 'AC' },
   { username: 'teknisi.bangunan', nama: 'Rudi (Bangunan)', bidang: 'BANGUNAN' },
   { username: 'teknisi.air', nama: 'Joko (Air)', bidang: 'AIR' },
+  { username: 'teknisi.listrik2', nama: 'Hendra (Listrik)', bidang: 'LISTRIK' },
+  { username: 'teknisi.ac2', nama: 'Olaf (AC)', bidang: 'AC' },
 ];
 
 async function main() {
