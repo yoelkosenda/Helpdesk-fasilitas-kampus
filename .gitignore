@@ -6,3 +6,4 @@ frontend/dist/
 uploads/*
 !uploads/.gitkeep
 tests/tmp/
+test-results/
